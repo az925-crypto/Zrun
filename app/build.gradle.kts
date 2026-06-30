@@ -36,7 +36,9 @@ android {
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.zaaam.Zmusic"
+        // App baru "ZRun" (Strava + musik). Package kode internal tetap
+        // com.zaaam.Zmusic; yang menjadikan ini app berbeda di device = applicationId.
+        applicationId = "com.zaaam.zrun"
         minSdk = 26
         targetSdk = 35
         // versionCode WAJIB naik tiap rilis — Android menolak update APK dengan

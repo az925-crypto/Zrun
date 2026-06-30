@@ -1,4 +1,4 @@
-name: Build APK Zmusic
+name: Build APK ZRun
 
 on:
   push:
@@ -40,7 +40,7 @@ jobs:
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
         with:
-          name: zmusic-debug-apk
+          name: zrun-debug-apk
           path: app/build/outputs/apk/debug/app-debug.apk
           retention-days: 14
 
