@@ -8,12 +8,19 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
-// FITUR STRAVA: Maps API key dibaca dari local.properties (tidak di-commit).
-// Default "" agar CI tetap build walau key belum diisi (peta blank di runtime).
-val mapsApiKey: String = Properties().apply {
-    val f = rootProject.file("local.properties")
-    if (f.exists()) f.inputStream().use { load(it) }
-}.getProperty("MAPS_API_KEY") ?: ""
+// FITUR STRAVA: Maps API key. Prioritas baca:
+//   1) local.properties (lokal, tak di-commit)  2) gradle.properties / -P (ter-commit)
+//   3) env MAPS_API_KEY (CI secret)             4) "" (build tetap jalan, peta blank)
+val mapsApiKey: String = run {
+    val local = Properties().apply {
+        val f = rootProject.file("local.properties")
+        if (f.exists()) f.inputStream().use { load(it) }
+    }
+    local.getProperty("MAPS_API_KEY")
+        ?: (project.findProperty("MAPS_API_KEY") as String?)?.takeIf { it.isNotBlank() }
+        ?: System.getenv("MAPS_API_KEY")
+        ?: ""
+}
 
 // Firebase: plugin google-services HANYA di-apply kalau google-services.json ADA.
 // Plugin ini menggagalkan build kalau di-apply tanpa file itu — jadi JANGAN ditaruh
@@ -44,6 +51,17 @@ android {
         manifestPlaceholders["MAPS_API_KEY"] = mapsApiKey
     }
 
+    // Debug keystore TETAP (di-commit) → SHA-1 konsisten di semua build CI,
+    // sehingga Maps API key bisa dibatasi ke package + SHA-1 ini di Google Cloud.
+    signingConfigs {
+        create("debugFixed") {
+            storeFile = file("debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+        }
+    }
+
     // ── Signing release via env (untuk CI) ──────────────────────────────────
     // Hanya aktif kalau env ZMUSIC_KEYSTORE_PATH tersedia (di GitHub Actions,
     // di-set dari Secrets). Build lokal/HP TANPA env ini berperilaku persis
@@ -61,6 +79,9 @@ android {
     }
 
     buildTypes {
+        debug {
+            signingConfig = signingConfigs.getByName("debugFixed")
+        }
         release {
             isMinifyEnabled = true
             proguardFiles(
