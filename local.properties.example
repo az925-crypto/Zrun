@@ -1,0 +1,9 @@
+# Copy this file to `local.properties` and fill in your values.
+# `local.properties` is git-ignored so your keys never get committed.
+
+# Path to your Android SDK (Android Studio sets this automatically).
+# sdk.dir=/Users/you/Library/Android/sdk
+
+# Google Maps API key — required for the map to render.
+# Get one at https://console.cloud.google.com/ (enable "Maps SDK for Android").
+MAPS_API_KEY=YOUR_GOOGLE_MAPS_API_KEY
