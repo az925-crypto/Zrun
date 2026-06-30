@@ -1,15 +1,4 @@
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
-
-// StringFog: obfuscate string literal di bytecode (proteksi umum saat R8/release).
-// Diterapkan via buildscript classpath karena tidak tersedia di Gradle Plugin Portal.
-buildscript {
-    repositories { mavenCentral() }
-    dependencies {
-        classpath("com.github.megatronking.stringfog:gradle-plugin:5.2.0")
-        classpath("com.github.megatronking.stringfog:xor:5.0.0")
-    }
-}
-
 plugins {
     id("com.android.application") version "8.12.0" apply false
     id("org.jetbrains.kotlin.android") version "2.0.21" apply false

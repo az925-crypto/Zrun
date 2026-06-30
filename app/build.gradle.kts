@@ -31,15 +31,6 @@ if (file("google-services.json").exists()) {
     apply(plugin = "com.google.gms.google-services")
 }
 
-// StringFog — obfuscate string literal di package app kita (bukan NewPipe/lib).
-// Catatan: TIDAK melindungi Maps API key (key dibaca dari AndroidManifest, bukan
-// string di kode). Proteksi key tetap via restriction di Google Cloud.
-apply(plugin = "com.github.megatronking.stringfog")
-extensions.configure<com.github.megatronking.stringfog.plugin.StringFogExtension>("stringfog") {
-    implementation = "com.github.megatronking.stringfog.xor.StringFogImpl"
-    fogPackages = arrayOf("com.zaaam.Zmusic")
-}
-
 android {
     namespace = "com.zaaam.Zmusic"
     compileSdk = 35
@@ -173,9 +164,6 @@ dependencies {
 
     // Coroutines
     implementation(libs.kotlinx.coroutines.android)
-
-    // StringFog runtime (decrypt string yang di-obfuscate saat build)
-    implementation("com.github.megatronking.stringfog:xor:5.0.0")
 
     // FITUR STRAVA — lokasi (FusedLocationProvider) + Google Maps Compose
     implementation(libs.play.services.location)
