@@ -188,7 +188,7 @@ class MainActivity : AppCompatActivity() {
         enableEdgeToEdge()
         setContent {
             ZmusicTheme {
-                ZmusicApp()
+                com.zaaam.Zmusic.ui.zrun.ZRunApp()
             }
         }
     }
