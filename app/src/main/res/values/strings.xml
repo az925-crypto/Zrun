@@ -1,5 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">StravaMusic</string>
-    <string name="tracking_channel_name">Activity Tracking</string>
-    <string name="tracking_channel_desc">Shows ongoing run/ride recording</string>
+    <string name="app_name">Zmusic</string>
 </resources>
+

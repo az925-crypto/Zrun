@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html>
+<head><meta charset="UTF-8"></head>
+<body>
+<script>
+'use strict';
+
+// BotGuard object, diisi setelah initBotGuard() dipanggil
+var _bg = null;
+
+/**
+ * Jalankan BotGuard program dari YouTube WAA response.
+ * Dipanggil dari PoTokenWebView via evaluateJavascript.
+ *
+ * @param {string} program    - JS program dari WAA challenge (field 1)
+ * @param {string} globalName - Nama var global yang ditulis program (mis. "a")
+ * @param {string} callbackId - ID untuk return hasil ke Android
+ */
+function initBotGuard(program, globalName, callbackId) {
+    try {
+        // Eksekusi BotGuard program — dia nulis object ke globalThis[globalName]
+        new Function(program)();
+
+        var bg = globalThis[globalName];
+        if (!bg) throw new Error('BotGuard tidak ada di globalThis.' + globalName);
+
+        _bg = bg;
+        AndroidBridge.onInitResult(callbackId, 'ok');
+    } catch (e) {
+        // Log keys yang tersedia di global buat debugging
+        var keys = Object.keys(globalThis).filter(function(k) {
+            return k.length <= 3;
+        }).join(',');
+        AndroidBridge.onInitResult(callbackId, 'error:' + (e.message || String(e)) + '|globals:' + keys);
+    }
+}
+
+/**
+ * Generate poToken untuk content binding (videoId atau visitorData).
+ * Dipanggil dari PoTokenWebView via evaluateJavascript.
+ *
+ * @param {string} contentBinding - Identifier yang di-bind ke token
+ * @param {string} callbackId     - ID untuk return hasil ke Android
+ */
+function generatePoToken(contentBinding, callbackId) {
+    if (!_bg) {
+        AndroidBridge.onPoTokenResult(callbackId, '');
+        return;
+    }
+
+    try {
+        // Coba method invoke yang umum dipakai BotGuard.
+        // Nama method-nya sering berubah tiap update YouTube — coba beberapa fallback.
+        var invokeFn = _bg.invoke
+            || _bg.a
+            || _bg.b
+            || _bg.c
+            || null;
+
+        if (!invokeFn) {
+            // Log keys BotGuard buat debugging kalau method nggak ketemu
+            var keys = typeof _bg === 'object' ? Object.keys(_bg).join(',') : typeof _bg;
+            console.error('[ZmusicPoToken] Tidak ada invoke method. Keys: ' + keys);
+            AndroidBridge.onPoTokenResult(callbackId, 'debug:keys=' + keys);
+            return;
+        }
+
+        invokeFn.call(_bg, contentBinding, function(token) {
+            AndroidBridge.onPoTokenResult(callbackId, token ? String(token) : '');
+        });
+
+    } catch (e) {
+        console.error('[ZmusicPoToken] generatePoToken error: ' + e.message);
+        AndroidBridge.onPoTokenResult(callbackId, '');
+    }
+}
+</script>
+</body>
+</html>

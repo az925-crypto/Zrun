@@ -1,0 +1,49 @@
+name: Build APK Zmusic
+
+on:
+  push:
+    branches: [ main, 'claude/**' ]
+    paths-ignore:
+      - '**.md'
+      - 'patches/**'
+      - 'Ztube/**'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Setup Gradle (dengan cache)
+        uses: gradle/actions/setup-gradle@v4
+
+      # gradle.properties berisi override aapt2 khusus build dari HP (Termux:
+      # android.aapt2FromMavenOverride=/usr/bin/aapt2). Path itu tidak ada di
+      # runner CI — hapus barisnya di sini saja; file di repo tetap utuh
+      # supaya build di HP tetap jalan.
+      - name: Hapus override aapt2 khusus Termux
+        run: sed -i '/aapt2FromMavenOverride/d' gradle.properties
+
+      - name: Build debug APK
+        run: ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Upload debug APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: zmusic-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 14
+
+      # Build release sengaja dimatikan di CI (hemat waktu runner; cukup debug).
+      # Infrastruktur signing via Secrets ZMUSIC_* tetap ada di build.gradle.kts —
+      # kalau mau release lagi, kembalikan step assembleRelease dari riwayat git.

@@ -1,77 +1,44 @@
-# StravaMusic 🏃‍♂️🎵
+# Zmusic + Strava
 
-An Android app that records your runs/rides/walks like Strava **and** lets you
-control music while you move. Built with **Kotlin + Jetpack Compose**.
+Aplikasi Android **pelacak olahraga mirip Strava** (GPS, jarak, pace, riwayat)
+**dengan fitur pemutar musik** — Kotlin + Jetpack Compose. Musik streaming via
+NewPipeExtractor (basis app Zmusic). Saat dibuka, app langsung ke layar **Rekam**;
+musik ada di tab **Musik** dan mini-player tetap muncul saat tracking.
 
-## Features
+## Fitur Strava (modul tracking)
 
-- 📍 **GPS tracking + map** — records your route live on a Google Map (route
-  polyline, current position).
-- 📊 **Real-time stats** — distance, duration, current speed, and pace.
-- ⏯️ **Start / pause / resume / stop** with a foreground service, so recording
-  keeps running when the screen is off or the app is in the background.
-- 📜 **Activity history** — finished activities are saved to a local Room
-  database and shown in a list; tap one to see its map + summary.
-- 🎵 **Integrated music bar** — a persistent mini-player (play/pause, next,
-  previous, progress) so you can control music while recording.
+- 📍 **Rekam lari + peta** (Google Maps): rute live, jarak, waktu, pace,
+  kecepatan. Berjalan sebagai foreground service (lanjut saat layar mati).
+- 📜 **Riwayat aktivitas** (Room) + halaman detail dengan peta rute.
+- 🎵 **Mini-player** nempel di atas bottom-nav → kontrol musik sambil lari.
 
-## Project structure
+### Setup peta
+Salin `local.properties.example` → `local.properties`, isi `MAPS_API_KEY`
+(aktifkan *Maps SDK for Android* di Google Cloud). Tanpa key, app tetap
+build & jalan, hanya petanya blank.
 
-```
-app/src/main/java/com/stravamusic/app/
-├── MainActivity.kt              # Entry, permission handling
-├── StravaMusicApp.kt            # Application: DB + notification channel
-├── data/
-│   ├── local/                   # Room: entity, DAO, database, converters
-│   └── repository/              # ActivityRepository
-├── tracking/
-│   ├── TrackingService.kt       # Foreground GPS recording service
-│   ├── TrackingBus / State      # Shared live tracking state
-│   ├── TrackingViewModel.kt
-│   └── LocationUtils.kt         # Haversine distance + formatters
-├── music/
-│   ├── MusicController.kt        # ← interface to plug in YOUR music code
-│   ├── MediaPlayerMusicController # default MediaPlayer-based impl
-│   └── MusicViewModel.kt
-└── ui/                          # Compose screens, components, theme, nav
-```
+> Kode musik Zmusic (equalizer, lyrics, stats, wrapped, floating player,
+> widget) tetap ada di repo, hanya tidak ditaruh di bottom-nav agar app fokus
+> ke olahraga. MVP olahraga: tipe **Lari (Run)**.
 
-## Setup
+## Build otomatis (GitHub Actions)
 
-1. **Clone & open in Android Studio** (Hedgehog or newer recommended).
-2. **Add a Google Maps API key:**
-   - Copy `local.properties.example` → `local.properties`.
-   - Set `MAPS_API_KEY=...` (enable *Maps SDK for Android* in Google Cloud).
-   - The map shows blank without a valid key; everything else still works.
-3. **Run** on a device or emulator with Google Play services.
-4. Grant **location** (and **notifications** on Android 13+) when prompted.
+Setiap push ke `main`/`claude/**` memicu workflow **Build APK Zmusic**
+(`.github/workflows/build-apk.yml`):
 
-Or from the command line:
+1. Buka tab **Actions** → pilih run terbaru.
+2. Tunggu hijau (±10–20 menit), lalu unduh dari bagian **Artifacts**:
+   - `zmusic-debug-apk` — langsung bisa di-install untuk dites.
+   - `zmusic-release-unsigned-apk` — hasil R8/minify (belum ditandatangani,
+     perlu signing dulu kalau mau di-install).
 
-```bash
-./gradlew assembleDebug
-```
+> Build dari HP (AndroidIDE/Termux) tetap jalan — override aapt2 di
+> `gradle.properties` dipertahankan dan hanya di-strip saat build CI.
 
-## Plugging in your own music code 🎵
+## Isi repo
 
-The UI only talks to the [`MusicController`](app/src/main/java/com/stravamusic/app/music/MusicController.kt)
-interface. To use your own playback source:
-
-- **Option A** — replace the bodies in `MediaPlayerMusicController` with your
-  engine's calls, or
-- **Option B** — create a new class implementing `MusicController` and point
-  `MusicViewModel` at it:
-
-  ```kotlin
-  private val controller: MusicController = MyAwesomeMusicController(app)
-  ```
-
-Then feed your real songs with `controller.setQueue(listOfTracks)` instead of
-the placeholder `SampleTracks.demo`.
-
-## Notes
-
-- `minSdk = 24`, `targetSdk = 35`.
-- Background location recording uses a `location` foreground service type.
-- The demo music queue streams two short sample WAV files just so the player has
-  something to play out of the box — swap them for your library.
+- `app/`, `gradle/`, `build.gradle.kts`, dst. — project Android lengkap
+  - `app/.../tracking/` + `app/.../ui/tracking/` — modul Strava (service GPS,
+    layar Rekam/Aktivitas/Detail)
+- [`CLAUDE.md`](CLAUDE.md) — panduan codebase Zmusic (untuk AI assistant)
+- [`ANALISA-ZMUSIC.md`](ANALISA-ZMUSIC.md) — laporan review Zmusic v2.2.1

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "261411636014",
+    "project_id": "zmusic-6372b",
+    "storage_bucket": "zmusic-6372b.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:261411636014:android:15c85217cc1d7666a1b0bf",
+        "android_client_info": {
+          "package_name": "com.zaaam.Zmusic"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBKMtTjjfxnCfhmk9eCh-j5bExP9vsbFd0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

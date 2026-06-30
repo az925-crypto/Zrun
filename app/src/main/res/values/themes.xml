@@ -1,7 +1,16 @@
-<resources xmlns:tools="http://schemas.android.com/tools">
-    <!-- Base theme used before Compose takes over. -->
-    <style name="Theme.StravaMusic" parent="android:Theme.Material.Light.NoActionBar">
-        <item name="android:statusBarColor">@color/orange_primary</item>
-        <item name="android:windowBackground">@color/background</item>
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+        Parent: Theme.AppCompat.DayNight.NoActionBar
+        Memerlukan: androidx.appcompat:appcompat (sudah ditambah di build.gradle.kts)
+        ZmusicTheme.kt (Compose) mengambil alih seluruh UI di runtime.
+        XML theme ini hanya untuk bootstrap window sebelum Compose render pertama kali.
+        
+        NOTE: statusBarColor, navigationBarColor, windowDrawsSystemBarBackgrounds
+        DIHAPUS dari sini — enableEdgeToEdge() di MainActivity yang handle secara
+        programmatic dengan logic per-API-level (aman untuk Android 10-15).
+    -->
+    <style name="Theme.Zmusic" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="android:windowBackground">@android:color/black</item>
     </style>
 </resources>

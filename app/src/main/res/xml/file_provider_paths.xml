@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<paths>
+    <!-- Untuk NowPlayingCardGenerator (share gambar) -->
+    <cache-path
+        name="shared_images"
+        path="shares/" />
+    <!-- FIX: Untuk export playlist JSON -->
+    <cache-path
+        name="playlist_exports"
+        path="exports/" />
+</paths>
