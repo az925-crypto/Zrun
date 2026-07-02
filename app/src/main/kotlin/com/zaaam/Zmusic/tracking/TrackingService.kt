@@ -61,6 +61,11 @@ class TrackingService : Service() {
     // terakhir supaya angka km/j di layar tidak loncat-loncat.
     private val recentSpeedsKmh = ArrayDeque<Double>()
 
+    // Anchor titik mentah TERAKHIR (selalu maju, termasuk saat segmen ditolak).
+    // Tanpa ini, kecepatan tinggi yang konstan membuat filter glitch menolak
+    // SEMUA segmen selamanya → jarak beku (bug ditemukan saat tes Lockito 50 km/j).
+    private var lastRawPoint: GeoPoint? = null
+
     private val locationCallback = object : LocationCallback() {
         override fun onLocationResult(result: LocationResult) {
             val data = stateHolder.data.value
@@ -91,6 +96,7 @@ class TrackingService : Service() {
         accumulatedMillis = 0L
         movingAccumMillis = 0L
         recentSpeedsKmh.clear()
+        lastRawPoint = null
         segmentStartElapsed = SystemClock.elapsedRealtime()
 
         startForeground(NOTIFICATION_ID, buildNotification())
@@ -164,15 +170,27 @@ class TrackingService : Service() {
     /**
      * Pipeline akurasi (riset: filter akurasi → speed bawaan GPS → filter glitch →
      * ambang bergerak/diam → smoothing tampilan).
+     *
+     * Anchor jarak = titik mentah sebelumnya (lastRawPoint), dan SELALU maju —
+     * segmen glitch cuma dibuang satu, tidak membekukan jarak selamanya.
      */
     private fun onNewLocation(location: Location) {
         // Langkah 2: buang fix dengan radius error terlalu besar.
         if (location.hasAccuracy() && location.accuracy > MAX_ACCURACY_M) return
 
         val point = GeoPoint(location.latitude, location.longitude, System.currentTimeMillis())
-        // Langkah 3: pakai speed bawaan chip GPS (Doppler), bukan hitung ulang manual.
-        val rawKmh = if (location.hasSpeed()) location.speed * 3.6 else 0.0
-        val movingSlow = location.hasSpeed() && location.speed * 3.6 < MIN_MOVING_KMH
+        val prev = lastRawPoint
+        lastRawPoint = point // anchor selalu maju
+
+        val d = if (prev != null) LocationUtils.distanceMeters(prev, point) else 0.0
+        val dtSec = if (prev != null) (point.timestamp - prev.timestamp) / 1000.0 else 0.0
+        val impliedMps = if (dtSec > 0) d / dtSec else 0.0
+
+        // Langkah 3: speed bawaan chip GPS (Doppler); fallback ke kecepatan tersirat
+        // dari jarak/waktu kalau fix tidak membawa data speed (beberapa mock/GPS).
+        val speedMps = if (location.hasSpeed()) location.speed.toDouble() else impliedMps
+        val rawKmh = speedMps * 3.6
+        val movingSlow = rawKmh < MIN_MOVING_KMH
 
         // Langkah 7: smoothing tampilan — rata-rata 5 sampel terakhir.
         recentSpeedsKmh.addLast(rawKmh)
@@ -180,16 +198,14 @@ class TrackingService : Service() {
         val smoothKmh = if (movingSlow) 0.0 else recentSpeedsKmh.average()
 
         stateHolder.update { current ->
-            val last = current.route.lastOrNull()
-            if (last == null) {
+            if (prev == null) {
                 return@update current.copy(route = listOf(point), currentSpeedKmh = smoothKmh)
             }
-            val d = LocationUtils.distanceMeters(last, point)
-            val dtSec = (point.timestamp - last.timestamp) / 1000.0
-
-            // Langkah 2 lanjutan: buang segmen "teleport" (kecepatan tersirat mustahil).
-            if (dtSec > 0 && (d / dtSec) > MAX_PLAUSIBLE_MPS) return@update current
-
+            // Filter glitch: segmen "teleport" dibuang (anchor sudah maju, jadi
+            // segmen berikutnya dinilai normal lagi — tidak beku permanen).
+            if (dtSec > 0 && impliedMps > MAX_PLAUSIBLE_MPS) {
+                return@update current.copy(currentSpeedKmh = smoothKmh)
+            }
             // Langkah 4-5: jarak hanya bertambah saat benar-benar bergerak.
             val accept = d >= MIN_STEP_M && !movingSlow
             if (accept) {
@@ -253,7 +269,7 @@ class TrackingService : Service() {
         // ── Ambang pipeline akurasi (dari dokumen riset) ─────────────────────
         private const val MAX_ACCURACY_M = 15f      // buang fix radius error >15m
         private const val MIN_MOVING_KMH = 2.5      // <2.5 km/j = dianggap diam (ala Strava)
-        private const val MAX_PLAUSIBLE_MPS = 12.0  // >43 km/j antar titik = glitch GPS
+        private const val MAX_PLAUSIBLE_MPS = 15.0  // >54 km/j antar titik = glitch GPS
         private const val MIN_STEP_M = 2.0          // gerakan <2m diabaikan (drift)
         private const val SPEED_WINDOW = 5          // jendela smoothing tampilan
     }
