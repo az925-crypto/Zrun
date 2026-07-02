@@ -12,6 +12,8 @@ data class TrackingData(
     val isTracking: Boolean = false,
     val isPaused: Boolean = false,
     val elapsedMillis: Long = 0L,
+    /** Waktu BERGERAK saja (ala Strava): detik saat diam/istirahat tidak dihitung. */
+    val movingMillis: Long = 0L,
     val distanceMeters: Double = 0.0,
     val currentSpeedKmh: Double = 0.0,
     val route: List<GeoPoint> = emptyList()

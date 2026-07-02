@@ -48,6 +48,7 @@ class RecordViewModel @Inject constructor(
                     type = type,
                     startTime = data.route.firstOrNull()?.timestamp ?: System.currentTimeMillis(),
                     durationMillis = data.elapsedMillis,
+                    movingMillis = data.movingMillis,
                     distanceMeters = data.distanceMeters,
                     avgSpeedKmh = data.avgSpeedKmh,
                     route = data.route

@@ -21,7 +21,7 @@ import com.zaaam.Zmusic.model.entity.SongEntity
         SearchHistoryEntity::class,
         ActivityEntity::class
     ],
-    version = 7,
+    version = 8,
     exportSchema = false
 )
 @TypeConverters(RouteConverters::class)
@@ -91,6 +91,14 @@ abstract class AppDatabase : RoomDatabase() {
                         route TEXT NOT NULL
                     )"""
                 )
+            }
+        }
+
+        // AKURASI PACE: kolom waktu-bergerak (ala Strava) untuk pace yang tidak
+        // rusak oleh istirahat. Data lama default 0 → fallback ke durationMillis.
+        val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE activities ADD COLUMN movingMillis INTEGER NOT NULL DEFAULT 0")
             }
         }
     }

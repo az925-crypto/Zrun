@@ -12,14 +12,21 @@ data class ActivityEntity(
     val type: String,            // MVP: "Run"
     val startTime: Long,         // epoch millis
     val durationMillis: Long,
+    /** Waktu bergerak saja (ala Strava). 0 untuk data lama sebelum kolom ini ada. */
+    val movingMillis: Long = 0L,
     val distanceMeters: Double,
     val avgSpeedKmh: Double,
     val route: List<GeoPoint>
 ) {
-    /** Pace rata-rata dalam detik per kilometer (0 kalau tak ada jarak). */
+    /**
+     * Pace rata-rata (detik per km) dari WAKTU BERGERAK — istirahat tidak merusak
+     * pace. Fallback ke durasi total untuk aktivitas lama tanpa movingMillis.
+     */
     val avgPaceSecPerKm: Long
         get() {
             val km = distanceMeters / 1000.0
-            return if (km > 0) (durationMillis / 1000.0 / km).toLong() else 0L
+            if (km <= 0) return 0L
+            val baseMs = if (movingMillis > 0) movingMillis else durationMillis
+            return (baseMs / 1000.0 / km).toLong()
         }
 }

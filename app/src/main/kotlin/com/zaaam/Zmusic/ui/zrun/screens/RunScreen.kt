@@ -141,7 +141,8 @@ fun RunScreen(onClose: () -> Unit, vm: RecordViewModel = hiltViewModel()) {
         ) {
             Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
                 StatTile(LocationUtils.formatDuration(data.elapsedMillis), "WAKTU", Modifier.weight(1f))
-                StatTile("${LocationUtils.formatPace(pace(data.distanceMeters, data.elapsedMillis))}", "PACE /KM", Modifier.weight(1f), ZR.Mint)
+                // Pace dari waktu BERGERAK (ala Strava) — berhenti di lampu merah tak merusak pace.
+                StatTile("${LocationUtils.formatPace(pace(data.distanceMeters, if (data.movingMillis > 0) data.movingMillis else data.elapsedMillis))}", "PACE /KM", Modifier.weight(1f), ZR.Mint)
                 StatTile("%.1f".format(data.currentSpeedKmh), "KM/J", Modifier.weight(1f))
             }
             Spacer(Modifier.height(16.dp))

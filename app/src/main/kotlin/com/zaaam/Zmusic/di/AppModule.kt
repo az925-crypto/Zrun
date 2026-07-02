@@ -56,7 +56,8 @@ object AppModule {
             AppDatabase.MIGRATION_3_4,
             AppDatabase.MIGRATION_4_5,
             AppDatabase.MIGRATION_5_6,  // FIX #4 + #15: index pada play_history + search_history
-            AppDatabase.MIGRATION_6_7   // FITUR STRAVA: tabel activities
+            AppDatabase.MIGRATION_6_7,  // FITUR STRAVA: tabel activities
+            AppDatabase.MIGRATION_7_8   // AKURASI: kolom movingMillis di activities
         )
         .build()
 

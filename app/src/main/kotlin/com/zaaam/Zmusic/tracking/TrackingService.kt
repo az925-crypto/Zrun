@@ -53,6 +53,14 @@ class TrackingService : Service() {
     private var accumulatedMillis = 0L
     private var segmentStartElapsed = 0L
 
+    // Waktu BERGERAK (ala Strava §1.4): diakumulasi tiap tick timer saat kecepatan
+    // di atas ambang. Istirahat tanpa tekan Jeda otomatis tak merusak pace.
+    private var movingAccumMillis = 0L
+
+    // Smoothing tampilan (riset §langkah-7): rata-rata bergerak 5 sampel speed
+    // terakhir supaya angka km/j di layar tidak loncat-loncat.
+    private val recentSpeedsKmh = ArrayDeque<Double>()
+
     private val locationCallback = object : LocationCallback() {
         override fun onLocationResult(result: LocationResult) {
             val data = stateHolder.data.value
@@ -81,6 +89,8 @@ class TrackingService : Service() {
         stateHolder.reset()
         stateHolder.update { it.copy(isTracking = true, isPaused = false) }
         accumulatedMillis = 0L
+        movingAccumMillis = 0L
+        recentSpeedsKmh.clear()
         segmentStartElapsed = SystemClock.elapsedRealtime()
 
         startForeground(NOTIFICATION_ID, buildNotification())
@@ -103,7 +113,10 @@ class TrackingService : Service() {
             accumulatedMillis += SystemClock.elapsedRealtime() - segmentStartElapsed
         }
         stateHolder.update {
-            it.copy(isTracking = false, isPaused = false, elapsedMillis = accumulatedMillis)
+            it.copy(
+                isTracking = false, isPaused = false,
+                elapsedMillis = accumulatedMillis, movingMillis = movingAccumMillis
+            )
         }
         fusedClient.removeLocationUpdates(locationCallback)
         timerJob?.cancel()
@@ -114,11 +127,17 @@ class TrackingService : Service() {
     private fun startTimer() {
         timerJob?.cancel()
         timerJob = scope.launch {
+            var lastTick = SystemClock.elapsedRealtime()
             while (isActive) {
+                val now = SystemClock.elapsedRealtime()
+                val delta = now - lastTick
+                lastTick = now
                 val data = stateHolder.data.value
                 if (data.isTracking && !data.isPaused) {
-                    val live = accumulatedMillis + (SystemClock.elapsedRealtime() - segmentStartElapsed)
-                    stateHolder.update { it.copy(elapsedMillis = live) }
+                    val live = accumulatedMillis + (now - segmentStartElapsed)
+                    // Moving time: hanya bertambah saat kecepatan di atas ambang "diam".
+                    if (data.currentSpeedKmh >= MIN_MOVING_KMH) movingAccumMillis += delta
+                    stateHolder.update { it.copy(elapsedMillis = live, movingMillis = movingAccumMillis) }
                 }
                 delay(1000)
             }
@@ -126,8 +145,9 @@ class TrackingService : Service() {
     }
 
     private fun requestLocationUpdates() {
-        val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 3000L)
-            .setMinUpdateIntervalMillis(2000L)
+        // Riset §langkah-1: update tiap ±1 detik, prioritas akurasi tinggi.
+        val request = LocationRequest.Builder(Priority.PRIORITY_HIGH_ACCURACY, 1000L)
+            .setMinUpdateIntervalMillis(1000L)
             .setMinUpdateDistanceMeters(0f)
             .build()
 
@@ -141,32 +161,45 @@ class TrackingService : Service() {
         fusedClient.requestLocationUpdates(request, locationCallback, Looper.getMainLooper())
     }
 
+    /**
+     * Pipeline akurasi (riset: filter akurasi → speed bawaan GPS → filter glitch →
+     * ambang bergerak/diam → smoothing tampilan).
+     */
     private fun onNewLocation(location: Location) {
-        // 1) Buang fix GPS berakurasi jelek (>25m) — sumber utama "jarak hantu".
-        if (location.hasAccuracy() && location.accuracy > 25f) return
+        // Langkah 2: buang fix dengan radius error terlalu besar.
+        if (location.hasAccuracy() && location.accuracy > MAX_ACCURACY_M) return
 
         val point = GeoPoint(location.latitude, location.longitude, System.currentTimeMillis())
-        // km/jam dari GPS speed (Doppler) — lebih akurat daripada turunan jarak.
-        val speedKmh = if (location.hasSpeed()) location.speed * 3.6 else 0.0
-        // Dianggap "diam" kalau GPS speed < ~2.2 km/j.
-        val movingSlow = location.hasSpeed() && location.speed < 0.6f
+        // Langkah 3: pakai speed bawaan chip GPS (Doppler), bukan hitung ulang manual.
+        val rawKmh = if (location.hasSpeed()) location.speed * 3.6 else 0.0
+        val movingSlow = location.hasSpeed() && location.speed * 3.6 < MIN_MOVING_KMH
+
+        // Langkah 7: smoothing tampilan — rata-rata 5 sampel terakhir.
+        recentSpeedsKmh.addLast(rawKmh)
+        if (recentSpeedsKmh.size > SPEED_WINDOW) recentSpeedsKmh.removeFirst()
+        val smoothKmh = if (movingSlow) 0.0 else recentSpeedsKmh.average()
 
         stateHolder.update { current ->
             val last = current.route.lastOrNull()
             if (last == null) {
-                return@update current.copy(route = listOf(point), currentSpeedKmh = speedKmh)
+                return@update current.copy(route = listOf(point), currentSpeedKmh = smoothKmh)
             }
             val d = LocationUtils.distanceMeters(last, point)
-            // Tambah jarak hanya kalau gerak ≥2m DAN tidak sedang diam → cegah drift menumpuk.
-            val accept = d >= 2.0 && !movingSlow
+            val dtSec = (point.timestamp - last.timestamp) / 1000.0
+
+            // Langkah 2 lanjutan: buang segmen "teleport" (kecepatan tersirat mustahil).
+            if (dtSec > 0 && (d / dtSec) > MAX_PLAUSIBLE_MPS) return@update current
+
+            // Langkah 4-5: jarak hanya bertambah saat benar-benar bergerak.
+            val accept = d >= MIN_STEP_M && !movingSlow
             if (accept) {
                 current.copy(
                     route = current.route + point,
                     distanceMeters = current.distanceMeters + d,
-                    currentSpeedKmh = speedKmh
+                    currentSpeedKmh = smoothKmh
                 )
             } else {
-                current.copy(currentSpeedKmh = if (movingSlow) 0.0 else speedKmh)
+                current.copy(currentSpeedKmh = smoothKmh)
             }
         }
     }
@@ -216,5 +249,12 @@ class TrackingService : Service() {
         const val ACTION_STOP = "com.zaaam.Zmusic.tracking.STOP"
         private const val CHANNEL_ID = "tracking_channel"
         private const val NOTIFICATION_ID = 73
+
+        // ── Ambang pipeline akurasi (dari dokumen riset) ─────────────────────
+        private const val MAX_ACCURACY_M = 15f      // buang fix radius error >15m
+        private const val MIN_MOVING_KMH = 2.5      // <2.5 km/j = dianggap diam (ala Strava)
+        private const val MAX_PLAUSIBLE_MPS = 12.0  // >43 km/j antar titik = glitch GPS
+        private const val MIN_STEP_M = 2.0          // gerakan <2m diabaikan (drift)
+        private const val SPEED_WINDOW = 5          // jendela smoothing tampilan
     }
 }
