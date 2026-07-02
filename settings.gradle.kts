@@ -15,5 +15,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "Zmusic"
+rootProject.name = "ZRun"
 include(":app")

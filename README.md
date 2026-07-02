@@ -1,9 +1,9 @@
-# Zmusic + Strava
+# ZRun
 
-Aplikasi Android **pelacak olahraga mirip Strava** (GPS, jarak, pace, riwayat)
-**dengan fitur pemutar musik** — Kotlin + Jetpack Compose. Musik streaming via
-NewPipeExtractor (basis app Zmusic). Saat dibuka, app langsung ke layar **Rekam**;
-musik ada di tab **Musik** dan mini-player tetap muncul saat tracking.
+Aplikasi Android **pelacak lari ala Strava** (GPS, jarak, pace, riwayat)
+**dengan fitur pemutar musik** — Kotlin + Jetpack Compose, UI design system
+"Ember". Musik streaming via NewPipeExtractor (mesin dari proyek Zmusic; UI
+dan fitur ditulis ulang khusus ZRun).
 
 ## Fitur Strava (modul tracking)
 
@@ -17,9 +17,10 @@ Salin `local.properties.example` → `local.properties`, isi `MAPS_API_KEY`
 (aktifkan *Maps SDK for Android* di Google Cloud). Tanpa key, app tetap
 build & jalan, hanya petanya blank.
 
-> Kode musik Zmusic (equalizer, lyrics, stats, wrapped, floating player,
-> widget) tetap ada di repo, hanya tidak ditaruh di bottom-nav agar app fokus
-> ke olahraga. MVP olahraga: tipe **Lari (Run)**.
+> Sisa fitur/UI Zmusic yang tidak dipakai ZRun sudah dihapus dari source
+> (equalizer UI, lyrics UI, stats musik, wrapped, floating player, widget,
+> Firebase). Yang dipertahankan hanya mesin: streaming NewPipe + ExoPlayer,
+> queue/playlist, download, MusicService. MVP olahraga: tipe **Lari (Run)**.
 
 ## Build otomatis (GitHub Actions)
 
@@ -38,7 +39,7 @@ Setiap push ke `main`/`claude/**` memicu workflow **Build APK Zmusic**
 ## Isi repo
 
 - `app/`, `gradle/`, `build.gradle.kts`, dst. — project Android lengkap
-  - `app/.../tracking/` + `app/.../ui/tracking/` — modul Strava (service GPS,
-    layar Rekam/Aktivitas/Detail)
-- [`CLAUDE.md`](CLAUDE.md) — panduan codebase Zmusic (untuk AI assistant)
-- [`ANALISA-ZMUSIC.md`](ANALISA-ZMUSIC.md) — laporan review Zmusic v2.2.1
+  - `app/.../ui/zrun/` — seluruh UI ZRun (theme Ember + screens)
+  - `app/.../tracking/` — mesin GPS (service + state)
+- [`CLAUDE.md`](CLAUDE.md) — panduan codebase (untuk AI assistant)
+- [`NEWPIPE-EXTRACTOR.md`](NEWPIPE-EXTRACTOR.md) — referensi mesin streaming

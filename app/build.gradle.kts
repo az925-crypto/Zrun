@@ -22,15 +22,6 @@ val mapsApiKey: String = run {
         ?: ""
 }
 
-// Firebase: plugin google-services HANYA di-apply kalau google-services.json ADA.
-// Plugin ini menggagalkan build kalau di-apply tanpa file itu — jadi JANGAN ditaruh
-// di blok plugins{} di atas. CI/debug (tanpa file) tetap build; Firebase jadi inert
-// di runtime (lihat AnalyticsManager yang nge-guard FirebaseApp.getApps()).
-// File ditaruh user di app/google-services.json (di-generate dari Firebase Console).
-if (file("google-services.json").exists()) {
-    apply(plugin = "com.google.gms.google-services")
-}
-
 android {
     namespace = "com.zaaam.Zmusic"
     compileSdk = 35
@@ -43,9 +34,9 @@ android {
         targetSdk = 35
         // versionCode WAJIB naik tiap rilis — Android menolak update APK dengan
         // versionCode <= yang terpasang (user terpaksa uninstall = data Room hilang).
-        // Konvensi: versionName X.Y.Z -> versionCode XYZ (2.2.1 -> 221)
-        versionCode = 225
-        versionName = "2.2.5"
+        // Konvensi: versionName X.Y.Z -> versionCode X*100+Y*10+Z (1.0.0 -> 100)
+        versionCode = 100
+        versionName = "1.0.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -171,11 +162,6 @@ dependencies {
     implementation(libs.play.services.location)
     implementation(libs.play.services.maps)
     implementation(libs.maps.compose)
-
-    // Firebase Analytics (versi diatur Firebase BoM). Lihat AnalyticsManager —
-    // dependency aman ada walau google-services.json belum dipasang (inert).
-    implementation(platform(libs.firebase.bom))
-    implementation(libs.firebase.analytics)
 
     debugImplementation(libs.androidx.ui.tooling)
 }

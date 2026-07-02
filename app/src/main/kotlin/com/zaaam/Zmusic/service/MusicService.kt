@@ -45,7 +45,6 @@ import kotlinx.coroutines.withTimeout
 import kotlinx.coroutines.flow.first
 import com.zaaam.Zmusic.model.entity.PlaylistWithSongs
 import com.zaaam.Zmusic.model.entity.toSong
-import com.zaaam.Zmusic.widget.ZmusicWidgetProvider
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.atomic.AtomicBoolean
 import javax.inject.Inject
@@ -175,82 +174,10 @@ class MusicService : MediaSessionService() {
         private const val TAG = "ZmusicService"
         private const val FOREGROUND_NOTIF_ID  = 1
         private const val PLAYBACK_CHANNEL_ID  = "zmusic_playback"
-
-        // Widget actions
-        const val ACTION_PLAY_PLAYLIST      = "com.zaaam.Zmusic.ACTION_PLAY_PLAYLIST"
-        const val ACTION_TOGGLE_PLAY_PAUSE  = "com.zaaam.Zmusic.ACTION_TOGGLE_PLAY_PAUSE"
-        const val ACTION_NEXT               = "com.zaaam.Zmusic.ACTION_NEXT"
-        const val EXTRA_PLAYLIST_ID         = "playlist_id"
-
-        // Widget now playing broadcast
-        const val ACTION_UPDATE_WIDGET  = "com.zaaam.Zmusic.ACTION_UPDATE_WIDGET"
-        const val EXTRA_SONG_TITLE      = "song_title"
-        const val EXTRA_SONG_ARTIST     = "song_artist"
-        const val EXTRA_IS_PLAYING      = "is_playing"
     }
 
-    // ════════════════════════════════════════════════════════════════════════
-    // broadcastWidgetUpdate — kirim state Now Playing ke widget
-    // ════════════════════════════════════════════════════════════════════════
-
-    private fun broadcastWidgetUpdate(song: Song?, isPlaying: Boolean) {
-        val intent = Intent(this, ZmusicWidgetProvider::class.java).apply {
-            action = ACTION_UPDATE_WIDGET
-            putExtra(EXTRA_SONG_TITLE,  song?.title  ?: "")
-            putExtra(EXTRA_SONG_ARTIST, song?.artist ?: "")
-            putExtra(EXTRA_IS_PLAYING,  isPlaying)
-        }
-        sendBroadcast(intent)
-    }
-
-    // ════════════════════════════════════════════════════════════════════════
-    // onStartCommand — handle widget actions
-    // ════════════════════════════════════════════════════════════════════════
-
-    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        val result = super.onStartCommand(intent, flags, startId)
-
-        when (intent?.action) {
-
-            ACTION_PLAY_PLAYLIST -> {
-                val playlistId = intent.getLongExtra(EXTRA_PLAYLIST_ID, -1L)
-                if (playlistId == -1L) return result
-
-                serviceScope.launch {
-                    try {
-                        val playlistWithSongs = withContext(Dispatchers.IO) {
-                            repository.getPlaylistWithSongs(playlistId).first()
-                        }
-                        val songs = playlistWithSongs.songs.map { it.toSong() }
-                        if (songs.isEmpty()) return@launch
-
-                        queueManager.setQueue(
-                            songs       = songs,
-                            startIndex  = 0,
-                            sourceQuery = "widget_playlist"
-                        )
-                        queueManager.requestPlay(songs[0], userInitiated = true)
-                    } catch (e: Exception) {
-                        // Playlist kosong atau DB error — tap widget jadi no-op,
-                        // minimal tinggalkan jejak di logcat (aturan emas: jangan telan error)
-                        Log.e(TAG, "ACTION_PLAY_PLAYLIST gagal untuk playlistId=$playlistId", e)
-                    }
-                }
-            }
-
-            ACTION_TOGGLE_PLAY_PAUSE -> {
-                if (player.isPlaying) player.pause()
-                else if (requestAudioFocus()) player.play()
-            }
-
-            ACTION_NEXT -> {
-                val nextSong = queueManager.next()
-                if (nextSong != null) playSong(nextSong)
-            }
-        }
-
-        return result
-    }
+    override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int =
+        super.onStartCommand(intent, flags, startId)
 
     // ════════════════════════════════════════════════════════════════════════
     // onCreate
@@ -268,7 +195,7 @@ class MusicService : MediaSessionService() {
                 "Music Playback",
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "Kontrol pemutaran musik Zmusic"
+                description = "Kontrol pemutaran musik ZRun"
                 setShowBadge(false)
             }
             val notifManager = getSystemService(NotificationManager::class.java)
@@ -277,7 +204,7 @@ class MusicService : MediaSessionService() {
 
         // ── FIX BUG #8: startForeground() SEGERA di onCreate() ─────────────
         val placeholderNotif = NotificationCompat.Builder(this, PLAYBACK_CHANNEL_ID)
-            .setContentTitle("Zmusic")
+            .setContentTitle("ZRun")
             .setContentText("Mempersiapkan pemutaran...")
             .setSmallIcon(R.mipmap.ic_launcher)
             .setPriority(NotificationCompat.PRIORITY_LOW)
@@ -381,7 +308,6 @@ class MusicService : MediaSessionService() {
                             songStartTime = 0L
                             accumulatedDuration = 0L
                             hasRecordedForCurrentSong = false
-                            broadcastWidgetUpdate(nextSong, player.isPlaying)
 
                             // Jadwalkan add lagu berikutnya ke ExoPlayer untuk
                             // gapless transition berikutnya
@@ -575,7 +501,6 @@ class MusicService : MediaSessionService() {
                     accumulatedDuration += System.currentTimeMillis() - songStartTime
                     songStartTime = 0L
                 }
-                broadcastWidgetUpdate(currentSong, isPlaying)
             }
         })
 
@@ -852,7 +777,6 @@ class MusicService : MediaSessionService() {
                 songStartTime = 0L
                 accumulatedDuration = 0L
                 hasRecordedForCurrentSong = false
-                broadcastWidgetUpdate(song, false) // isPlaying akan update via onIsPlayingChanged
 
                 // Reset playerQueue — kita mulai fresh dengan lagu ini
                 playerQueue.clear()

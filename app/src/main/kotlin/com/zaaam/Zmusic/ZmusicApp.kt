@@ -6,9 +6,7 @@ import coil.Coil
 import coil.ImageLoader
 import coil.disk.DiskCache
 import coil.memory.MemoryCache
-import com.zaaam.Zmusic.analytics.AnalyticsManager
 import com.zaaam.Zmusic.data.NewPipeDownloader
-import com.zaaam.Zmusic.data.SettingsRepository
 import com.zaaam.Zmusic.data.ZmusicPoTokenProvider
 import dagger.hilt.android.HiltAndroidApp
 import org.schabi.newpipe.extractor.NewPipe
@@ -22,8 +20,6 @@ class ZmusicApp : Application() {
 
     @Inject lateinit var newPipeDownloader: NewPipeDownloader
     @Inject lateinit var poTokenProvider: ZmusicPoTokenProvider
-    @Inject lateinit var analyticsManager: AnalyticsManager
-    @Inject lateinit var settingsRepository: SettingsRepository
 
     // Flag agar bisa di-retry dari luar (misal HomeViewModel) kalau init gagal
     var isNewPipeReady = false
@@ -33,31 +29,10 @@ class ZmusicApp : Application() {
         super.onCreate()
         initCoilSingleton()
         initNewPipe()
-        initAnalytics()
     }
 
-    // Terapkan preferensi opt-out yang tersimpan ke Firebase Analytics. Inert
-    // (no-op) kalau google-services.json belum dipasang — lihat AnalyticsManager.
-    private fun initAnalytics() {
-        try {
-            analyticsManager.setEnabled(settingsRepository.isAnalyticsEnabled())
-        } catch (e: Exception) {
-            Log.e("ZmusicApp", "Gagal set status analytics", e)
-        }
-    }
-
-    // FIX POTENSI #5: Inisialisasi Coil singleton di Application.
-    //
-    // MASALAH LAMA: FloatingPlayerService (dan NowPlayingCardGenerator) masing-masing
-    // membuat ImageLoader baru via ImageLoader(context). Akibatnya:
-    //   1. Setiap service memiliki OkHttpClient, MemoryCache, dan DiskCache tersendiri
-    //      → duplikasi resource, memori boros, koneksi HTTP tidak bisa di-reuse.
-    //   2. Cache thumbnail tidak di-share — gambar yang sudah di-load di PlayerScreen
-    //      harus di-load ulang di FloatingPlayerService.
-    //
-    // FIX: Setup Coil singleton sekali di sini. Semua komponen yang memanggil
-    // Coil.imageLoader(context) atau context.imageLoader akan mendapat instance
-    // yang sama dengan cache dan connection pool yang di-share.
+    // Coil singleton: satu ImageLoader (cache memori + disk di-share) untuk
+    // semua pemuat gambar di app — UI ZRun (ArtBox) & notifikasi MusicService.
     private fun initCoilSingleton() {
         Coil.setImageLoader(
             ImageLoader.Builder(this)

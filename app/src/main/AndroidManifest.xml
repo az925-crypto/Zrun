@@ -18,19 +18,9 @@
     <!-- Hanya berlaku di API 34+ (Android 14+), diabaikan di bawahnya -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK"
         tools:targetApi="34" />
-    <!-- FIX: Permission untuk FloatingPlayerService foreground service type -->
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_SPECIAL_USE"
-        tools:targetApi="34" />
-    <!-- FIX BUG #1: WAKE_LOCK untuk PARTIAL_WAKE_LOCK di ExoPlayer agar CPU
-         tidak masuk power-saving mode saat layar mati → mencegah buffer habis -->
+    <!-- WAKE_LOCK untuk PARTIAL_WAKE_LOCK di ExoPlayer agar CPU tidak masuk
+         power-saving mode saat layar mati → mencegah buffer habis -->
     <uses-permission android:name="android.permission.WAKE_LOCK"/>
-    <!-- Untuk floating bubble - user harus grant manual di Settings -->
-    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
-    <!-- FIX: RECORD_AUDIO untuk AudioVisualizerView.
-         Tanpa permission ini, Visualizer(audioSessionId) selalu throw SecurityException
-         → AudioVisualizerView jatuh ke FakeVisualizerView (animasi palsu).
-         User akan diminta grant saat pertama kali membuka PlayerScreen. -->
-    <uses-permission android:name="android.permission.RECORD_AUDIO"/>
 
     <application
         android:name=".ZmusicApp"
@@ -63,18 +53,6 @@
             </intent-filter>
         </service>
 
-        <!-- FIX BUG #4: FloatingPlayerService dengan foregroundServiceType="specialUse"
-             agar tidak di-kill oleh sistem di Android 12+ tanpa notifikasi foreground.
-             Pakai specialUse karena ini overlay/floating UI, bukan media playback. -->
-        <service
-            android:name=".service.FloatingPlayerService"
-            android:foregroundServiceType="specialUse"
-            android:exported="false">
-            <property
-                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="floating_player_overlay" />
-        </service>
-
         <!-- FITUR STRAVA: foreground service perekam GPS (tipe location) -->
         <service
             android:name=".tracking.TrackingService"
@@ -86,21 +64,7 @@
             android:name="com.google.android.geo.API_KEY"
             android:value="${MAPS_API_KEY}" />
 
-        <receiver
-            android:name=".widget.ZmusicWidgetProvider"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
-                <action android:name="com.zaaam.Zmusic.ACTION_UPDATE_WIDGET" />
-            </intent-filter>
-            <meta-data
-                android:name="android.appwidget.provider"
-                android:resource="@xml/zmusic_widget_info" />
-        </receiver>
-
-        <!-- FIX: FileProvider untuk NowPlayingCardGenerator.
-             getUriForFile() butuh FileProvider agar bisa share bitmap ke app lain
-             (WhatsApp, Instagram, dll) tanpa FileUriExposedException di Android 7+.
+        <!-- FileProvider untuk ekspor playlist (LibraryViewModel.exportPlaylist).
              authorities HARUS sama persis dengan di kode:
              "${context.packageName}.fileprovider" -->
         <provider
