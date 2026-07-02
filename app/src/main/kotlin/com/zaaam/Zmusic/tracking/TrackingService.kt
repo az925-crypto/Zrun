@@ -142,21 +142,31 @@ class TrackingService : Service() {
     }
 
     private fun onNewLocation(location: Location) {
+        // 1) Buang fix GPS berakurasi jelek (>25m) — sumber utama "jarak hantu".
+        if (location.hasAccuracy() && location.accuracy > 25f) return
+
         val point = GeoPoint(location.latitude, location.longitude, System.currentTimeMillis())
+        // km/jam dari GPS speed (Doppler) — lebih akurat daripada turunan jarak.
+        val speedKmh = if (location.hasSpeed()) location.speed * 3.6 else 0.0
+        // Dianggap "diam" kalau GPS speed < ~2.2 km/j.
+        val movingSlow = location.hasSpeed() && location.speed < 0.6f
+
         stateHolder.update { current ->
-            val lastPoint = current.route.lastOrNull()
-            val addedDistance = if (lastPoint != null) LocationUtils.distanceMeters(lastPoint, point) else 0.0
-            val speed = if (location.hasSpeed()) location.speed * 3.6 else current.currentSpeedKmh
-            // Filter jitter GPS: abaikan lompatan <1m saat praktis diam.
-            val accept = lastPoint == null || addedDistance >= 1.0
-            if (!accept) {
-                current.copy(currentSpeedKmh = speed)
-            } else {
+            val last = current.route.lastOrNull()
+            if (last == null) {
+                return@update current.copy(route = listOf(point), currentSpeedKmh = speedKmh)
+            }
+            val d = LocationUtils.distanceMeters(last, point)
+            // Tambah jarak hanya kalau gerak ≥2m DAN tidak sedang diam → cegah drift menumpuk.
+            val accept = d >= 2.0 && !movingSlow
+            if (accept) {
                 current.copy(
                     route = current.route + point,
-                    distanceMeters = current.distanceMeters + addedDistance,
-                    currentSpeedKmh = speed
+                    distanceMeters = current.distanceMeters + d,
+                    currentSpeedKmh = speedKmh
                 )
+            } else {
+                current.copy(currentSpeedKmh = if (movingSlow) 0.0 else speedKmh)
             }
         }
     }

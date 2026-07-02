@@ -29,6 +29,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -45,6 +48,8 @@ import com.zaaam.Zmusic.ui.home.HomeState
 import com.zaaam.Zmusic.ui.home.HomeViewModel
 import com.zaaam.Zmusic.ui.library.LibraryViewModel
 import com.zaaam.Zmusic.ui.player.PlayerViewModel
+import com.zaaam.Zmusic.ui.zrun.AddToPlaylistDialog
+import com.zaaam.Zmusic.ui.zrun.CreatePlaylistDialog
 import com.zaaam.Zmusic.ui.zrun.SectionHeader
 import com.zaaam.Zmusic.ui.zrun.SongRow
 import com.zaaam.Zmusic.ui.zrun.ZR
@@ -63,6 +68,9 @@ fun MusicHomeScreen(
     val queue by player.queueManager.queue.collectAsState()
     val idx by player.queueManager.currentIndex.collectAsState()
     val currentId = queue.getOrNull(idx)?.id
+
+    var songToAdd by remember { mutableStateOf<Song?>(null) }
+    var showCreate by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) { if (state !is HomeState.Success) homeVm.loadDiscovery() }
 
@@ -123,30 +131,50 @@ fun MusicHomeScreen(
                     }
                 }
 
-                // playlist kamu
+                // playlist kamu (+ tombol buat)
+                SectionHeader("Playlist kamu", action = "+ Buat", onAction = { showCreate = true })
                 if (playlists.isNotEmpty()) {
-                    SectionHeader("Playlist kamu")
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
                         items(playlists, key = { it.id }) { pl -> PlaylistCard(pl) { onOpenPlaylist(pl.id) } }
                     }
+                } else {
+                    Text("Belum ada playlist. Tekan “+ Buat”, atau tekan-lama lagu untuk menambah.",
+                        color = ZR.Mut, fontSize = 12.5.sp)
                 }
 
                 // rekomendasi
                 if (c.featuredSongs.isNotEmpty()) {
                     SectionHeader("Pilihan buatmu")
                     c.featuredSongs.take(6).forEach { song ->
-                        SongRow(song = song, isPlaying = song.id == currentId, onClick = { play(song, c.featuredSongs) })
+                        SongRow(song = song, isPlaying = song.id == currentId,
+                            onClick = { play(song, c.featuredSongs) }, onLongClick = { songToAdd = song })
                     }
                 }
 
                 if (running.isNotEmpty()) {
                     SectionHeader("Trending")
                     running.take(10).forEach { song ->
-                        SongRow(song = song, isPlaying = song.id == currentId, onClick = { play(song, running) })
+                        SongRow(song = song, isPlaying = song.id == currentId,
+                            onClick = { play(song, running) }, onLongClick = { songToAdd = song })
                     }
                 }
             }
         }
+    }
+
+    if (showCreate) {
+        CreatePlaylistDialog(
+            onDismiss = { showCreate = false },
+            onCreate = { name -> libVm.createPlaylist(name) }
+        )
+    }
+    songToAdd?.let { s ->
+        AddToPlaylistDialog(
+            playlists = playlists,
+            onDismiss = { songToAdd = null },
+            onPick = { id -> libVm.addSongToPlaylist(id, s) },
+            onCreateNew = { name -> libVm.createPlaylistAndAdd(name, s) }
+        )
     }
 }
 

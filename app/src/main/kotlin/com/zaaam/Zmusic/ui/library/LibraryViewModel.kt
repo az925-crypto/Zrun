@@ -71,6 +71,17 @@ class LibraryViewModel @Inject constructor(
         }
     }
 
+    /** Buat playlist baru lalu langsung tambahkan lagu ke dalamnya (dipakai UI ZRun). */
+    fun createPlaylistAndAdd(name: String, song: Song) {
+        if (name.isBlank()) return
+        viewModelScope.launch {
+            try {
+                val id = repository.createPlaylist(name.trim())
+                repository.addToPlaylist(id, song)
+            } catch (e: Exception) { _error.value = "Gagal membuat playlist: ${e.message}" }
+        }
+    }
+
     fun deleteDownload(song: Song) {
         viewModelScope.launch {
             try {

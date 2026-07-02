@@ -28,6 +28,9 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -37,9 +40,12 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.zaaam.Zmusic.model.Song
+import com.zaaam.Zmusic.ui.library.LibraryViewModel
 import com.zaaam.Zmusic.ui.search.SearchState
 import com.zaaam.Zmusic.ui.search.SearchViewModel
 import com.zaaam.Zmusic.ui.player.PlayerViewModel
+import com.zaaam.Zmusic.ui.zrun.AddToPlaylistDialog
 import com.zaaam.Zmusic.ui.zrun.SongRow
 import com.zaaam.Zmusic.ui.zrun.ZR
 
@@ -48,10 +54,13 @@ fun SearchScreenZR(
     player: PlayerViewModel,
     onBack: () -> Unit,
     onOpenPlayer: () -> Unit,
-    vm: SearchViewModel = hiltViewModel()
+    vm: SearchViewModel = hiltViewModel(),
+    libVm: LibraryViewModel = hiltViewModel()
 ) {
     val query by vm.query.collectAsState()
     val state by vm.state.collectAsState()
+    val playlists by libVm.playlists.collectAsState()
+    var songToAdd by remember { mutableStateOf<Song?>(null) }
 
     Column(Modifier.fillMaxSize().background(ZR.Bg).statusBarsPadding().padding(horizontal = 16.dp)) {
         Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -86,11 +95,21 @@ fun SearchScreenZR(
                 LazyColumn(Modifier.fillMaxSize().padding(top = 12.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 40.dp)) {
                     items(s.results, key = { it.id }) { song ->
                         SongRow(song = song, isPlaying = false,
-                            onClick = { player.playSong(song, s.results); onOpenPlayer() })
+                            onClick = { player.playSong(song, s.results); onOpenPlayer() },
+                            onLongClick = { songToAdd = song })
                     }
                 }
             }
         }
+    }
+
+    songToAdd?.let { sng ->
+        AddToPlaylistDialog(
+            playlists = playlists,
+            onDismiss = { songToAdd = null },
+            onPick = { id -> libVm.addSongToPlaylist(id, sng) },
+            onCreateNew = { name -> libVm.createPlaylistAndAdd(name, sng) }
+        )
     }
 }
 
