@@ -46,7 +46,7 @@ cp local.properties.example local.properties  # isi MAPS_API_KEY
 ## 🔗 Referensi Luar
 
 - [README root](../README.md) — landing ringkas
-- [`CLAUDE.md`](../CLAUDE.md) — panduan AI (aturan keras)
+- [`10-contributing.md`](10-contributing.md) — 🤝 aturan keras + checklist PR
 - [`NEWPIPE-EXTRACTOR.md`](../NEWPIPE-EXTRACTOR.md) — referensi SABR/poToken 382 baris
 
 ---

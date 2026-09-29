@@ -2,7 +2,7 @@ name: Build APK ZRun
 
 on:
   push:
-    branches: [ main, 'claude/**' ]
+    branches: [ main ]
     paths-ignore:
       - '**.md'
       - 'patches/**'

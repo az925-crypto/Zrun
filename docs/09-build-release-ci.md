@@ -28,7 +28,7 @@
 
 ## 🤖 CI (`.github/workflows/build-apk.yml`)
 
-- Trigger: push `main` / `claude/**` (+ manual dispatch). Ignore `**.md`, `patches/**`.
+- Trigger: push `main` (+ manual dispatch). Ignore `**.md`, `patches/**`.
 - Runner: `ubuntu-latest`, JDK 17 Temurin, Gradle cache, timeout 45 mnt.
 - Step kunci: `sed -i /aapt2FromMavenOverride/d gradle.properties` (hapus override Termux khusus CI).
 - Artifact: **`zrun-debug-apk`** (14 hari). Step release **dimatikan** (hemat runner).

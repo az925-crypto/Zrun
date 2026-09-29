@@ -33,7 +33,7 @@ Single-activity, 100% Jetpack Compose, design system **Ember** 🔥 (gelap + aks
 
 ```
 Strava-app/
-├── 📖 README.md / CLAUDE.md / NEWPIPE-EXTRACTOR.md
+├── 📖 README.md / LICENSE / NEWPIPE-EXTRACTOR.md
 ├── 📚 docs/                  ← kamu di sini
 ├── ⚙️ gradle/libs.versions.toml  ← single source of truth versi
 ├── 🤖 .github/workflows/build-apk.yml

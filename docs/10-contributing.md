@@ -5,16 +5,16 @@
 ## 🌿 Branch & Commit
 
 ```bash
-git checkout -b claude/fitur-xyz   # CI otomatis jalan (main + claude/**)
+git checkout -b fitur-xyz          # CI otomatis jalan di main
 # ... ngoding ...
 ./gradlew assembleDebug             # wajib hijau lokal
-git push -u origin claude/fitur-xyz
+git push -u origin fitur-xyz
 ```
 
 - 📝 Commit message: `feat(run): tambah auto-pause` / `fix(musik): fallback muxed` / `docs: ...`.
 - 📦 Satu PR = satu tujuan. Jangan campur GPS + musik + UI dalam satu PR.
 
-## 🚫 5 Aturan Keras (dari `CLAUDE.md`)
+## 🚫 5 Aturan Keras Proyek
 
 1. 🎵 **Playback rapuh** — baca `NEWPIPE-EXTRACTOR.md` dulu. Jangan hapus log `totalAudio/videoStreams`. Jangan `catch` menelan error tanpa `Log.e`.
 2. 🗄️ **Room** — ubah skema = naik versi + Migration + daftar di `AppModule.kt`.

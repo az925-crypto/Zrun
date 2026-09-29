@@ -74,7 +74,7 @@ adb logcat -c; adb logcat -d | grep -iE "ZmusicService|totalAudio|FALLBACK|extra
 | 🎵 Musik | Tab Musik → play lagu | Mini-player muncul + bunyi |
 | 🗺️ Peta | Run / Dashboard | Peta tampil (kalau key benar) |
 
-Tes GPS tanpa keluar rumah: **Lockito** (mock location) kecepatan ~11 km/j. Verifikasi resmi: push ke `claude/**` → Actions hijau → unduh artifact `zrun-debug-apk`.
+Tes GPS tanpa keluar rumah: **Lockito** (mock location) kecepatan ~11 km/j. Verifikasi resmi: push ke `main` → Actions hijau → unduh artifact `zrun-debug-apk`.
 
 ## 🩹 Gagal? (90% kasus)
 

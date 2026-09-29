@@ -54,11 +54,11 @@ Salin `local.properties.example` → `local.properties`, isi `MAPS_API_KEY` (akt
 | 🤝 [`docs/10-contributing.md`](docs/10-contributing.md) | Aturan PR |
 | 🆘 [`docs/11-troubleshooting.md`](docs/11-troubleshooting.md) | Peta blank, musik gagal, GPS ngaco |
 
-Referensi mesin: [`CLAUDE.md`](CLAUDE.md) (aturan keras AI) · [`NEWPIPE-EXTRACTOR.md`](NEWPIPE-EXTRACTOR.md) (SABR/poToken).
+Panduan aturan: [`docs/10-contributing.md`](docs/10-contributing.md) · Referensi mesin: [`NEWPIPE-EXTRACTOR.md`](NEWPIPE-EXTRACTOR.md) (SABR/poToken).
 
 ## 🤖 Build Otomatis (GitHub Actions)
 
-Setiap push ke `main` / `claude/**` memicu **Build APK ZRun** (`.github/workflows/build-apk.yml`):
+Setiap push ke `main` memicu **Build APK ZRun** (`.github/workflows/build-apk.yml`):
 
 1. Buka tab **Actions** → pilih run terbaru.
 2. Tunggu 🟢 (±10–20 mnt) → unduh **Artifacts** → `zrun-debug-apk` → install.
@@ -74,6 +74,17 @@ Setiap push ke `main` / `claude/**` memicu **Build APK ZRun** (`.github/workflow
 - `gradle/libs.versions.toml` — 📌 single source of truth versi (jangan hardcode!)
 
 > 🧹 Sisa Zmusic yang tidak dipakai sudah dihapus (equalizer UI, lyrics UI, stats, wrapped, floating player, widget, Firebase). MVP olahraga: **Lari (Run)**.
+
+## ⛔ Lisensi — Proprietary
+
+![License](https://img.shields.io/badge/License-Proprietary-red)
+
+© 2026 az925-crypto. All rights reserved. Lihat [`LICENSE`](LICENSE).
+
+Dilarang tanpa izin tertulis: **claim/ngaku-ngaku** sebagai karya sendiri,
+**jual/komersialisasi**, serta **copy/redistribusi/publikasi ulang**
+(fork, mirror, turunan). Boleh dilihat untuk referensi. Izin: hubungi owner
+via halaman repo.
 
 ## ⚠️ Aturan Singkat
 
