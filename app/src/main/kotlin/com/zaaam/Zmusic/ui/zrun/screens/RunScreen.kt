@@ -7,7 +7,7 @@ import android.graphics.Paint
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
@@ -44,7 +44,6 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
-import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -93,7 +92,6 @@ import com.zaaam.Zmusic.ui.zrun.zStyle
 import com.zaaam.Zmusic.util.LocationUtils
 import java.text.NumberFormat
 import java.util.Locale
-import kotlinx.coroutines.launch
 
 private val MAP_STYLE = """
 [
@@ -225,24 +223,22 @@ private fun RunContent(
 
     BoxWithConstraints(Modifier.fillMaxSize().background(ZR.Bg)) {
         val maxSheetH = maxHeight * 0.55f
-        val scope = rememberCoroutineScope()
         var expanded by rememberSaveable { mutableStateOf(false) }
-        val anim = remember { Animatable(PEEK_H, Dp.VectorConverter) }
-        val sheetH = anim.value
+        var dragH by remember { mutableStateOf<Dp?>(null) }
+        val targetH = if (expanded) maxSheetH else PEEK_H
+        val sheetH by animateDpAsState(
+            targetValue = dragH ?: targetH,
+            animationSpec = spring(stiffness = Spring.StiffnessMedium),
+            label = "sheetH"
+        )
 
         fun snapTo(target: Boolean) {
             expanded = target
-            scope.launch {
-                anim.animateTo(
-                    if (target) maxSheetH else PEEK_H,
-                    spring(stiffness = Spring.StiffnessMedium)
-                )
-            }
+            dragH = null
         }
         val drag = rememberDraggableState { delta ->
-            scope.launch {
-                anim.snapTo((anim.value + with(density) { delta.toDp() }).coerceIn(PEEK_H, maxSheetH))
-            }
+            val cur = dragH ?: sheetH
+            dragH = (cur + with(density) { delta.toDp() }).coerceIn(PEEK_H, maxSheetH)
         }
 
         // Peta mengisi seluruh layar di belakang sheet
@@ -315,7 +311,7 @@ private fun RunContent(
                                 when {
                                     v < -500f -> true
                                     v > 500f -> false
-                                    else -> anim.value > (PEEK_H + maxSheetH) / 2
+                                    else -> (dragH ?: sheetH) > (PEEK_H + maxSheetH) / 2
                                 }
                             )
                         }

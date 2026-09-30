@@ -267,7 +267,7 @@ private fun PlanStrip(todayIdx: Int) {
             Column(
                 Modifier.weight(1f).fillMaxSize(),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalAlignment = Arrangement.Bottom
+                verticalArrangement = Arrangement.Bottom
             ) {
                 when {
                     planKm != null && isToday -> Box(
@@ -454,7 +454,7 @@ private fun WeekStrip(dayKm: List<Double>, todayIdx: Int) {
             Column(
                 Modifier.weight(1f).fillMaxSize(),
                 horizontalAlignment = Alignment.CenterHorizontally,
-                verticalAlignment = Arrangement.Bottom
+                verticalArrangement = Arrangement.Bottom
             ) {
                 when {
                     km > 0 -> Box(
