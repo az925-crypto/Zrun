@@ -76,6 +76,9 @@ jobs:
       contents: write
 
     steps:
+      - name: Checkout (untuk konteks git gh release)
+        uses: actions/checkout@v4
+
       - name: Unduh APK dari artifact
         uses: actions/download-artifact@v4
         with:
