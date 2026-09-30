@@ -58,10 +58,16 @@ Panduan aturan: [`docs/10-contributing.md`](docs/10-contributing.md) · Referens
 
 ## 🤖 Build Otomatis (GitHub Actions)
 
+> Semua build resmi jalan di Actions — jangan build rilis di env lokal.
+
 Setiap push ke `main` memicu **Build APK ZRun** (`.github/workflows/build-apk.yml`):
 
 1. Buka tab **Actions** → pilih run terbaru.
 2. Tunggu 🟢 (±10–20 mnt) → unduh **Artifacts** → `zrun-debug-apk` → install.
+
+**Rilis:** push tag `vX.Y.Z` (sama dengan `versionName`) → APK otomatis masuk
+halaman **Releases** sebagai `zrun-vX.Y.Z-debug.apk`, siap install.
+Detail → [`docs/09-build-release-ci.md`](docs/09-build-release-ci.md).
 
 > 📱 Build dari HP (Termux) tetap jalan — override `aapt2` di `gradle.properties` dipertahankan, CI yang strip otomatis.
 

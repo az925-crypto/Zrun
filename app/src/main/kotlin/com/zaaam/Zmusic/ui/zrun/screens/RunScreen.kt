@@ -6,6 +6,7 @@ import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -19,13 +20,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.Pause
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Stop
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Icon
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
@@ -40,28 +39,69 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.google.android.gms.maps.model.CameraPosition
+import com.google.android.gms.maps.model.JointType
 import com.google.android.gms.maps.model.LatLng
+import com.google.android.gms.maps.model.MapStyleOptions
+import com.google.android.gms.maps.model.RoundCap
+import com.google.maps.android.compose.Circle
 import com.google.maps.android.compose.GoogleMap
 import com.google.maps.android.compose.MapProperties
 import com.google.maps.android.compose.Polyline
 import com.google.maps.android.compose.rememberCameraPositionState
+import com.zaaam.Zmusic.model.GeoPoint
+import com.zaaam.Zmusic.model.Song
+import com.zaaam.Zmusic.tracking.TrackingData
+import com.zaaam.Zmusic.ui.player.PlayerViewModel
 import com.zaaam.Zmusic.ui.tracking.RecordViewModel
 import com.zaaam.Zmusic.ui.zrun.EmberButton
-import com.zaaam.Zmusic.ui.zrun.StatTile
 import com.zaaam.Zmusic.ui.zrun.ZR
+import com.zaaam.Zmusic.ui.zrun.ZRArt
+import com.zaaam.Zmusic.ui.zrun.ZRBigNumber
+import com.zaaam.Zmusic.ui.zrun.ZREqBars
+import com.zaaam.Zmusic.ui.zrun.ZRIcons
+import com.zaaam.Zmusic.ui.zrun.ZRRouteThumb
+import com.zaaam.Zmusic.ui.zrun.ZRRow
+import com.zaaam.Zmusic.ui.zrun.fmtKm1
+import com.zaaam.Zmusic.ui.zrun.fmtPaceQuote
+import com.zaaam.Zmusic.ui.zrun.zStyle
 import com.zaaam.Zmusic.util.LocationUtils
+import java.text.NumberFormat
+import java.util.Locale
+
+private val MAP_STYLE = """
+[
+  {"elementType":"geometry","stylers":[{"color":"#0f1217"}]},
+  {"elementType":"labels","stylers":[{"visibility":"off"}]},
+  {"featureType":"road","elementType":"geometry","stylers":[{"color":"#1d222b"}]},
+  {"featureType":"water","elementType":"geometry","stylers":[{"color":"#0b0e13"}]},
+  {"featureType":"poi","stylers":[{"visibility":"off"}]},
+  {"featureType":"transit","stylers":[{"visibility":"off"}]}
+]
+""".trimIndent()
 
 @Composable
-fun RunScreen(onClose: () -> Unit, vm: RecordViewModel = hiltViewModel()) {
+fun RunScreen(
+    player: PlayerViewModel,
+    onClose: () -> Unit,
+    onOpenMusic: () -> Unit = {},
+    onOpenPlayer: () -> Unit = {},
+    vm: RecordViewModel = hiltViewModel()
+) {
     val context = LocalContext.current
     val data by vm.state.collectAsState()
+    val queue by player.queueManager.queue.collectAsState()
+    val idx by player.queueManager.currentIndex.collectAsState()
+    val song = queue.getOrNull(idx)
+    val isPlaying by player.isPlaying.collectAsState()
 
     var hasPerm by remember {
         mutableStateOf(
@@ -73,123 +113,329 @@ fun RunScreen(onClose: () -> Unit, vm: RecordViewModel = hiltViewModel()) {
         hasPerm = res[Manifest.permission.ACCESS_FINE_LOCATION] == true ||
             res[Manifest.permission.ACCESS_COARSE_LOCATION] == true
     }
-    val requestPerm = {
-        val perms = mutableListOf(Manifest.permission.ACCESS_FINE_LOCATION, Manifest.permission.ACCESS_COARSE_LOCATION)
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) perms.add(Manifest.permission.POST_NOTIFICATIONS)
-        launcher.launch(perms.toTypedArray())
+
+    if (!hasPerm) {
+        PermContent(onGrant = {
+            val perms = mutableListOf(
+                Manifest.permission.ACCESS_FINE_LOCATION,
+                Manifest.permission.ACCESS_COARSE_LOCATION
+            )
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                perms.add(Manifest.permission.POST_NOTIFICATIONS)
+            }
+            launcher.launch(perms.toTypedArray())
+        })
+        return
     }
 
-    val routeLatLng = remember(data.route.size) { data.route.map { LatLng(it.latitude, it.longitude) } }
+    val finished = !data.isTracking && (data.elapsedMillis > 0 || data.route.isNotEmpty())
+    var showSave by remember { mutableStateOf(false) }
+
+    RunContent(
+        data = data,
+        song = song,
+        isPlaying = isPlaying,
+        onMusic = { if (song != null) onOpenPlayer() else onOpenMusic() },
+        onMain = {
+            when {
+                finished -> { /* menunggu simpan */
+                }
+                !data.isTracking -> vm.start()
+                data.isPaused -> vm.resume()
+                else -> vm.pause()
+            }
+        },
+        onStop = { vm.stop(); showSave = true }
+    )
+
+    if (showSave && finished) {
+        SaveDialog(
+            onSave = { title -> vm.saveActivity(title) { showSave = false; onClose() } },
+            onDiscard = { vm.discard(); showSave = false; onClose() },
+            onCancel = { showSave = false }
+        )
+    }
+}
+
+@Composable
+private fun RunContent(
+    data: TrackingData,
+    song: Song?,
+    isPlaying: Boolean,
+    onMusic: () -> Unit,
+    onMain: () -> Unit,
+    onStop: () -> Unit
+) {
+    val routeLatLng = remember(data.route.size) {
+        data.route.map { LatLng(it.latitude, it.longitude) }
+    }
     val cam = rememberCameraPositionState {
         position = CameraPosition.fromLatLngZoom(LatLng(-6.2088, 106.8456), 15f)
     }
     androidx.compose.runtime.LaunchedEffect(routeLatLng.lastOrNull()) {
         routeLatLng.lastOrNull()?.let { cam.position = CameraPosition.fromLatLngZoom(it, 16f) }
     }
+    val density = LocalDensity.current
+    val polyWidth = remember { with(density) { 5.dp.toPx() } }
 
-    val finished = !data.isTracking && (data.elapsedMillis > 0 || data.route.isNotEmpty())
-    var showSave by remember { mutableStateOf(false) }
+    val gpsText = when {
+        data.route.isEmpty() -> "Mencari GPS"
+        data.route.size < 5 -> "GPS lemah"
+        else -> "GPS kuat"
+    }
+    val statusText = when {
+        data.isTracking && !data.isPaused -> "Merekam"
+        data.isPaused -> "Dijeda"
+        data.elapsedMillis > 0 -> "Selesai"
+        else -> "Siap"
+    }
 
     Box(Modifier.fillMaxSize().background(ZR.Bg)) {
-        if (hasPerm) {
-            GoogleMap(
-                modifier = Modifier.fillMaxSize(),
-                cameraPositionState = cam,
-                properties = MapProperties(isMyLocationEnabled = true)
-            ) {
-                if (routeLatLng.size >= 2) Polyline(points = routeLatLng, color = ZR.Ember2, width = 16f)
-            }
-        }
-
-        // tombol close
-        Box(
-            Modifier.statusBarsPadding().padding(14.dp).size(40.dp).clip(CircleShape)
-                .background(Color(0xAA15171C)).clickable(onClick = onClose),
-            contentAlignment = Alignment.Center
-        ) { Icon(Icons.Filled.Close, "tutup", tint = ZR.Tx) }
-
-        if (!hasPerm) {
-            Column(
-                Modifier.fillMaxSize().padding(32.dp),
-                verticalArrangement = Arrangement.Center, horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text("Butuh izin lokasi", color = ZR.Tx, fontWeight = FontWeight.ExtraBold, fontSize = 20.sp)
-                Spacer(Modifier.height(8.dp))
-                Text("Lokasi dipakai buat rekam rute, jarak & pace lari kamu.",
-                    color = ZR.Mut, fontSize = 13.sp, textAlign = TextAlign.Center)
-                Spacer(Modifier.height(16.dp))
-                EmberButton("Izinkan lokasi", onClick = requestPerm)
-            }
-            return@Box
-        }
-
-        // metric besar di atas
-        Column(
-            Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 40.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+        // Peta: atas sampai y=340dp, edge-to-edge di belakang status bar
+        GoogleMap(
+            modifier = Modifier.fillMaxWidth().height(340.dp),
+            cameraPositionState = cam,
+            properties = MapProperties(
+                isMyLocationEnabled = false,
+                mapStyleOptions = MapStyleOptions(MAP_STYLE)
+            )
         ) {
-            Text(LocationUtils.formatDistanceKm(data.distanceMeters), color = ZR.Tx,
-                fontWeight = FontWeight.Black, fontSize = 72.sp, letterSpacing = (-2).sp)
-            Text("KILOMETER", color = ZR.Mut, fontWeight = FontWeight.ExtraBold, fontSize = 12.sp, letterSpacing = 2.sp)
+            if (routeLatLng.size >= 2) {
+                Polyline(
+                    points = routeLatLng,
+                    color = ZR.Ember,
+                    width = polyWidth,
+                    jointType = JointType.ROUND,
+                    startCap = RoundCap(),
+                    endCap = RoundCap()
+                )
+            }
+            routeLatLng.lastOrNull()?.let {
+                Circle(center = it, radius = 6.0, fillColor = Color.White, strokeWidth = 0f)
+            }
         }
 
-        // sheet bawah
-        Column(
-            Modifier.align(Alignment.BottomCenter).fillMaxWidth()
-                .clip(RoundedCornerShape(topStart = 26.dp, topEnd = 26.dp))
-                .background(ZR.S1).padding(16.dp).padding(bottom = 12.dp)
+        // Dua pil melayang
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .statusBarsPadding()
+                .padding(top = 10.dp, start = 14.dp, end = 14.dp),
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-                StatTile(LocationUtils.formatDuration(data.elapsedMillis), "WAKTU", Modifier.weight(1f))
-                // Pace dari waktu BERGERAK (ala Strava) — berhenti di lampu merah tak merusak pace.
-                StatTile("${LocationUtils.formatPace(pace(data.distanceMeters, if (data.movingMillis > 0) data.movingMillis else data.elapsedMillis))}", "PACE /KM", Modifier.weight(1f), ZR.Mint)
-                StatTile("%.1f".format(data.currentSpeedKmh), "KM/J", Modifier.weight(1f))
-            }
-            Spacer(Modifier.height(16.dp))
-            when {
-                finished -> {
-                    Text("Lari selesai 🎉 simpan?", color = ZR.Tx, fontWeight = FontWeight.Bold,
-                        modifier = Modifier.fillMaxWidth(), textAlign = TextAlign.Center)
-                    Spacer(Modifier.height(12.dp))
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Box(Modifier.weight(1f).height(52.dp).clip(RoundedCornerShape(16.dp)).background(ZR.S2)
-                            .clickable { vm.discard(); onClose() }, contentAlignment = Alignment.Center) {
-                            Text("Buang", color = ZR.Tx, fontWeight = FontWeight.Bold)
-                        }
-                        EmberButton("Simpan", Modifier.weight(1f)) { showSave = true }
-                    }
-                }
-                !data.isTracking -> {
-                    EmberButton("MULAI", Modifier.fillMaxWidth().height(58.dp), Icons.Filled.PlayArrow) { vm.start() }
-                }
-                else -> {
-                    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        Box(Modifier.weight(1f).height(54.dp).clip(RoundedCornerShape(16.dp)).background(ZR.S2)
-                            .clickable { if (data.isPaused) vm.resume() else vm.pause() }, contentAlignment = Alignment.Center) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(if (data.isPaused) Icons.Filled.PlayArrow else Icons.Filled.Pause, null, tint = ZR.Tx)
-                                Spacer(Modifier.width(6.dp))
-                                Text(if (data.isPaused) "LANJUT" else "JEDA", color = ZR.Tx, fontWeight = FontWeight.Bold)
-                            }
-                        }
-                        Box(Modifier.weight(1f).height(54.dp).clip(RoundedCornerShape(16.dp))
-                            .background(Color(0x29FF3B5C)).clickable { vm.stop() }, contentAlignment = Alignment.Center) {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                Icon(Icons.Filled.Stop, null, tint = ZR.Stop)
-                                Spacer(Modifier.width(6.dp))
-                                Text("SELESAI", color = ZR.Stop, fontWeight = FontWeight.Bold)
-                            }
-                        }
-                    }
-                }
-            }
+            StatusPill(text = gpsText, dot = ZR.Mint)
+            StatusPill(text = statusText, dot = ZR.Stop)
         }
 
-        if (showSave && finished) {
-            SaveDialog(onSave = { title -> vm.saveActivity(title) { showSave = false; onClose() } },
-                onCancel = { showSave = false })
+        // Sheet bawah: mulai y=296dp
+        Column(
+            Modifier
+                .fillMaxSize()
+                .padding(top = 296.dp)
+                .clip(RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp))
+                .background(ZR.S1)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 20.dp, vertical = 18.dp)
+        ) {
+            Text("Jarak", style = zStyle(12.sp, FontWeight.Normal), color = ZR.Mut)
+            ZRBigNumber(fmtKm1(data.distanceMeters), "km", size = 66.sp)
+
+            Row(
+                Modifier.fillMaxWidth().padding(vertical = 14.dp),
+                horizontalArrangement = Arrangement.SpaceEvenly
+            ) {
+                RunStat(
+                    LocationUtils.formatDuration(data.elapsedMillis), "Durasi",
+                    Modifier.weight(1f)
+                )
+                val moving = if (data.movingMillis > 0) data.movingMillis else data.elapsedMillis
+                RunStat(
+                    fmtPaceQuote(pace(data.distanceMeters, moving)), "Pace",
+                    Modifier.weight(1f)
+                )
+                RunStat(
+                    NumberFormat.getNumberInstance(Locale("id", "ID")).apply {
+                        maximumFractionDigits = 1; minimumFractionDigits = 1
+                    }.format(data.currentSpeedKmh),
+                    "km/jam",
+                    Modifier.weight(1f)
+                )
+            }
+
+            if (song != null) {
+                ZRRow {
+                    ZRArt(seed = song.id, thumbnailUrl = song.thumbnailUrl, size = 40.dp, radius = 12.dp)
+                    Column(Modifier.weight(1f)) {
+                        Text(
+                            song.title,
+                            style = zStyle(14.sp, FontWeight.SemiBold),
+                            color = ZR.Tx, maxLines = 1
+                        )
+                        Text(
+                            song.artist,
+                            style = zStyle(12.sp, FontWeight.Normal),
+                            color = ZR.Mut, maxLines = 1
+                        )
+                    }
+                    if (isPlaying) ZREqBars()
+                }
+            } else {
+                ZRRow(onClick = onMusic) {
+                    ZRArt(seed = "kosong", size = 40.dp, radius = 12.dp)
+                    Text(
+                        "Pilih soundtrack lari",
+                        style = zStyle(14.sp, FontWeight.SemiBold),
+                        color = ZR.Tx,
+                        modifier = Modifier.weight(1f)
+                    )
+                    Icon(ZRIcons.Music, contentDescription = "Musik", tint = ZR.Mut, modifier = Modifier.size(20.dp))
+                }
+            }
+
+            Row(
+                Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 6.dp)
+                    .padding(top = 14.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    Modifier
+                        .size(52.dp)
+                        .clip(CircleShape)
+                        .background(ZR.S2)
+                        .clickable(onClick = onMusic),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(ZRIcons.Music, contentDescription = "Musik", tint = ZR.Tx, modifier = Modifier.size(20.dp))
+                }
+                val recording = data.isTracking && !data.isPaused
+                Box(
+                    Modifier
+                        .size(76.dp)
+                        .clip(CircleShape)
+                        .background(Color.White)
+                        .clickable(onClick = onMain),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        if (recording) ZRIcons.Pause else ZRIcons.Play,
+                        contentDescription = if (recording) "Jeda" else "Mulai",
+                        tint = Color(0xFF14161B),
+                        modifier = Modifier.size(30.dp)
+                    )
+                }
+                Box(
+                    Modifier
+                        .size(52.dp)
+                        .clip(CircleShape)
+                        .border(2.dp, ZR.Stop, CircleShape)
+                        .clickable(onClick = onStop),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(
+                        Modifier
+                            .size(16.dp)
+                            .clip(RoundedCornerShape(4.dp))
+                            .background(ZR.Stop)
+                    )
+                }
+            }
         }
     }
+}
+
+@Composable
+private fun RunStat(value: String, label: String, modifier: Modifier = Modifier) {
+    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(value, style = zStyle(20.sp, FontWeight.Bold), color = ZR.Tx)
+        Spacer(Modifier.height(2.dp))
+        Text(label, style = zStyle(12.sp, FontWeight.Normal), color = ZR.Mut)
+    }
+}
+
+@Composable
+private fun StatusPill(text: String, dot: Color) {
+    Row(
+        Modifier
+            .clip(RoundedCornerShape(14.dp))
+            .background(Color(0xB80A0B0E))
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(7.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(Modifier.size(7.dp).clip(CircleShape).background(dot))
+        Text(text, style = zStyle(11.5.sp, FontWeight.SemiBold), color = ZR.Tx)
+    }
+}
+
+@Composable
+private fun PermContent(onGrant: () -> Unit) {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .background(ZR.Bg)
+            .statusBarsPadding()
+            .padding(top = 10.dp)
+            .padding(32.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text("Butuh izin lokasi", style = zStyle(26.sp, FontWeight.Bold), color = ZR.Tx)
+        Spacer(Modifier.height(8.dp))
+        Text(
+            "Lokasi dipakai buat rekam rute, jarak dan pace larimu.",
+            style = zStyle(13.sp, FontWeight.Normal),
+            color = ZR.Mut, textAlign = TextAlign.Center
+        )
+        Spacer(Modifier.height(16.dp))
+        EmberButton("Izinkan lokasi", onClick = onGrant)
+    }
+}
+
+@Composable
+private fun SaveDialog(onSave: (String) -> Unit, onDiscard: () -> Unit, onCancel: () -> Unit) {
+    var title by remember { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onCancel,
+        containerColor = ZR.S1,
+        shape = RoundedCornerShape(26.dp),
+        title = { Text("Simpan aktivitas", style = zStyle(15.sp, FontWeight.SemiBold), color = ZR.Tx) },
+        text = {
+            OutlinedTextField(
+                value = title, onValueChange = { title = it },
+                label = { Text("Judul (opsional)") }, modifier = Modifier.fillMaxWidth()
+            )
+        },
+        confirmButton = {
+            Box(
+                Modifier
+                    .clip(RoundedCornerShape(14.dp))
+                    .background(ZR.Ember)
+                    .clickable { onSave(title) }
+                    .padding(horizontal = 18.dp, vertical = 10.dp)
+            ) {
+                Text("Simpan", style = zStyle(14.sp, FontWeight.Bold), color = Color.White)
+            }
+        },
+        dismissButton = {
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                Text(
+                    "Buang",
+                    style = zStyle(13.sp, FontWeight.SemiBold),
+                    color = ZR.Stop,
+                    modifier = Modifier.clickable(onClick = onDiscard).padding(10.dp)
+                )
+                Text(
+                    "Batal",
+                    style = zStyle(13.sp, FontWeight.SemiBold),
+                    color = ZR.Mut,
+                    modifier = Modifier.clickable(onClick = onCancel).padding(10.dp)
+                )
+            }
+        }
+    )
 }
 
 private fun pace(meters: Double, ms: Long): Long {
@@ -197,21 +443,22 @@ private fun pace(meters: Double, ms: Long): Long {
     return if (km > 0) (ms / 1000.0 / km).toLong() else 0L
 }
 
+@Preview(showBackground = true, backgroundColor = 0xFF0A0B0E, widthDp = 360, heightDp = 780)
 @Composable
-private fun SaveDialog(onSave: (String) -> Unit, onCancel: () -> Unit) {
-    var title by remember { mutableStateOf("") }
-    androidx.compose.material3.AlertDialog(
-        onDismissRequest = onCancel,
-        containerColor = ZR.S2,
-        title = { Text("Simpan aktivitas", color = ZR.Tx) },
-        text = {
-            OutlinedTextField(value = title, onValueChange = { title = it },
-                label = { Text("Judul (opsional)") }, modifier = Modifier.fillMaxWidth())
-        },
-        confirmButton = {
-            Box(Modifier.clip(RoundedCornerShape(12.dp)).background(ZR.Ember).clickable { onSave(title) }
-                .padding(horizontal = 18.dp, vertical = 10.dp)) { Text("Simpan", color = Color.White, fontWeight = FontWeight.Bold) }
-        },
-        dismissButton = { Text("Batal", color = ZR.Mut, modifier = Modifier.clickable(onClick = onCancel).padding(10.dp)) }
+private fun RunPreview() {
+    val route = listOf(
+        GeoPoint(-6.2088, 106.8456, 1L),
+        GeoPoint(-6.2098, 106.8466, 2L),
+        GeoPoint(-6.2108, 106.8476, 3L),
+        GeoPoint(-6.2118, 106.8466, 4L)
+    )
+    RunContent(
+        data = TrackingData(
+            isTracking = true, isPaused = false,
+            elapsedMillis = 1_669_000L, movingMillis = 1_600_000L,
+            distanceMeters = 5_200.0, currentSpeedKmh = 11.2, route = route
+        ),
+        song = null, isPlaying = false,
+        onMusic = {}, onMain = {}, onStop = {}
     )
 }

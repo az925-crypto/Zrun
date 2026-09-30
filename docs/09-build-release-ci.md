@@ -28,11 +28,27 @@
 
 ## 🤖 CI (`.github/workflows/build-apk.yml`)
 
-- Trigger: push `main` (+ manual dispatch). Ignore `**.md`, `patches/**`.
+> Semua build resmi jalan di GitHub Actions — jangan build rilis di env lokal.
+
+- Trigger: push `main` / tag `v*` (+ manual dispatch). Ignore `**.md`, `patches/**` (ignore tidak berlaku untuk tag).
 - Runner: `ubuntu-latest`, JDK 17 Temurin, Gradle cache, timeout 45 mnt.
 - Step kunci: `sed -i /aapt2FromMavenOverride/d gradle.properties` (hapus override Termux khusus CI).
 - Artifact: **`zrun-debug-apk`** (14 hari). Step release **dimatikan** (hemat runner).
 - Cara ambil: tab **Actions** → run hijau → **Artifacts** → install di HP.
+
+## 🚀 Rilis ke GitHub Release
+
+1. Naikkan `versionCode`/`versionName` ikut konvensi di bawah, commit + push ke `main`.
+2. Buat tag yang sama dengan versionName:
+   ```bash
+   git tag v1.0.0 && git push origin v1.0.0
+   ```
+3. CI otomatis: build debug → buat **Release** `v1.0.0` → lampirkan `zrun-v1.0.0-debug.apk` (langsung bisa di-install).
+4. Kalau tag di-push ulang / release sudah ada: APK di-upload ulang (`--clobber`).
+
+> APK rilis = varian **debug** (signed `debug.keystore`, langsung ter-install).
+> Belum ada signing release-store; kalau butuh APK R8/signed Play, aktifkan
+> kembali step `assembleRelease` + secrets `ZMUSIC_KEYSTORE_*`.
 
 ## 🔢 Versioning (Wajib Naik!)
 

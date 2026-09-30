@@ -2,13 +2,13 @@ package com.zaaam.Zmusic.ui.zrun.screens
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -35,19 +35,21 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.zaaam.Zmusic.model.Song
 import com.zaaam.Zmusic.ui.library.LibraryViewModel
+import com.zaaam.Zmusic.ui.player.PlayerViewModel
 import com.zaaam.Zmusic.ui.search.SearchState
 import com.zaaam.Zmusic.ui.search.SearchViewModel
-import com.zaaam.Zmusic.ui.player.PlayerViewModel
 import com.zaaam.Zmusic.ui.zrun.AddToPlaylistDialog
 import com.zaaam.Zmusic.ui.zrun.SongRow
 import com.zaaam.Zmusic.ui.zrun.ZR
+import com.zaaam.Zmusic.ui.zrun.zStyle
 
 @Composable
 fun SearchScreenZR(
@@ -62,41 +64,62 @@ fun SearchScreenZR(
     val playlists by libVm.playlists.collectAsState()
     var songToAdd by remember { mutableStateOf<Song?>(null) }
 
-    Column(Modifier.fillMaxSize().background(ZR.Bg).statusBarsPadding().padding(horizontal = 16.dp)) {
-        Row(Modifier.fillMaxWidth().padding(top = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-            Icon(Icons.AutoMirrored.Filled.ArrowBack, "kembali", tint = ZR.Tx,
-                modifier = Modifier.size(26.dp).clickable(onClick = onBack))
-            Spacer(Modifier.width(10.dp))
+    Column(
+        Modifier
+            .fillMaxSize()
+            .background(ZR.Bg)
+            .statusBarsPadding()
+            .padding(top = 10.dp)
+            .padding(horizontal = 16.dp)
+    ) {
+        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+            Icon(
+                Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Kembali", tint = ZR.Tx,
+                modifier = Modifier
+                    .size(48.dp)
+                    .clip(androidx.compose.foundation.shape.CircleShape)
+                    .clickable(onClick = onBack)
+                    .padding(12.dp)
+            )
+            Spacer(Modifier.width(2.dp))
             TextField(
                 value = query,
                 onValueChange = { vm.onQueryChange(it) },
-                placeholder = { Text("Cari lagu, artis…", color = ZR.Mut) },
+                placeholder = { Text("Cari lagu, artis…", style = zStyle(13.sp, FontWeight.Normal), color = ZR.Mut) },
                 singleLine = true,
-                modifier = Modifier.weight(1f).clip(RoundedCornerShape(14.dp)),
+                modifier = Modifier
+                    .weight(1f)
+                    .height(44.dp)
+                    .clip(RoundedCornerShape(22.dp)),
                 keyboardOptions = KeyboardOptions(imeAction = ImeAction.Search),
                 keyboardActions = KeyboardActions(onSearch = { vm.search(query) }),
                 colors = TextFieldDefaults.colors(
                     focusedContainerColor = ZR.S1, unfocusedContainerColor = ZR.S1,
                     focusedTextColor = ZR.Tx, unfocusedTextColor = ZR.Tx,
                     focusedIndicatorColor = Color.Transparent, unfocusedIndicatorColor = Color.Transparent,
-                    cursorColor = ZR.Ember2
+                    cursorColor = ZR.Ember
                 )
             )
         }
 
         when (val s = state) {
             is SearchState.Loading -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = ZR.Ember2)
+                CircularProgressIndicator(color = ZR.Ember)
             }
             is SearchState.Empty -> Center("Nggak ada hasil")
-            is SearchState.Idle -> Center("Cari lagu favoritmu buat lari 🎧")
+            is SearchState.Idle -> Center("Cari lagu favoritmu buat lari")
             is SearchState.Error -> Center(s.message)
             is SearchState.Success -> {
-                LazyColumn(Modifier.fillMaxSize().padding(top = 12.dp), contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 40.dp)) {
+                LazyColumn(
+                    Modifier.fillMaxSize().padding(top = 12.dp),
+                    contentPadding = androidx.compose.foundation.layout.PaddingValues(bottom = 40.dp)
+                ) {
                     items(s.results, key = { it.id }) { song ->
-                        SongRow(song = song, isPlaying = false,
+                        SongRow(
+                            song = song, isPlaying = false,
                             onClick = { player.playSong(song, s.results); onOpenPlayer() },
-                            onLongClick = { songToAdd = song })
+                            onLongClick = { songToAdd = song }
+                        )
                     }
                 }
             }
@@ -116,6 +139,12 @@ fun SearchScreenZR(
 @Composable
 private fun Center(text: String) {
     Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-        Text(text, color = ZR.Mut, fontSize = 14.sp, fontWeight = FontWeight.Medium)
+        Text(text, style = zStyle(14.sp, FontWeight.Normal), color = ZR.Mut)
     }
+}
+
+@Preview(showBackground = true, backgroundColor = 0xFF0A0B0E, widthDp = 360, heightDp = 780)
+@Composable
+private fun SearchPreview() {
+    Center("Cari lagu favoritmu buat lari")
 }

@@ -1,8 +1,13 @@
 name: Build APK ZRun
 
+# Semua build jalan di GitHub Actions — JANGAN build rilis di env lokal.
+# - Push ke main (non-docs) → build debug + upload artifact.
+# - Push tag v* (mis. v1.0.0) → build debug + buat GitHub Release + lampirkan APK.
+
 on:
   push:
     branches: [ main ]
+    tags: [ 'v*' ]
     paths-ignore:
       - '**.md'
       - 'patches/**'
@@ -47,3 +52,34 @@ jobs:
       # Build release sengaja dimatikan di CI (hemat waktu runner; cukup debug).
       # Infrastruktur signing via Secrets ZMUSIC_* tetap ada di build.gradle.kts —
       # kalau mau release lagi, kembalikan step assembleRelease dari riwayat git.
+
+  release:
+    # Hanya jalan saat push tag v* — APK diambil dari artifact job build.
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+
+    steps:
+      - name: Unduh APK dari artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: zrun-debug-apk
+          path: dist
+
+      - name: Buat GitHub Release + lampirkan APK
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="${GITHUB_REF#refs/tags/}"
+          APK="dist/zrun-${TAG}-debug.apk"
+          cp dist/app-debug.apk "$APK"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" "$APK" --clobber
+          else
+            gh release create "$TAG" "$APK" \
+              --title "ZRun $TAG" \
+              --notes "APK debug ZRun $TAG — langsung bisa di-install di HP."
+          fi

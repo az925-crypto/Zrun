@@ -1,6 +1,7 @@
 package com.zaaam.Zmusic.ui.zrun
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
@@ -15,18 +16,15 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.List
-import androidx.compose.material.icons.filled.Home
-import androidx.compose.material.icons.filled.LibraryMusic
-import androidx.compose.material.icons.filled.Person
+import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -100,7 +98,14 @@ fun ZRunApp() {
             }
             composable(Routes.FEED) { FeedScreen() }
             composable(Routes.PROFILE) { ProfileScreen() }
-            composable(Routes.RUN) { RunScreen(onClose = { nav.popBackStack() }) }
+            composable(Routes.RUN) {
+                RunScreen(
+                    player = player,
+                    onClose = { nav.popBackStack() },
+                    onOpenMusic = { nav.navigate(Routes.MUSIC) },
+                    onOpenPlayer = { nav.navigate(Routes.PLAYER) }
+                )
+            }
             composable(Routes.PLAYER) { PlayerScreenZR(player = player, onClose = { nav.popBackStack() }) }
             composable(Routes.SEARCH) {
                 SearchScreenZR(player = player, onBack = { nav.popBackStack() }, onOpenPlayer = { nav.navigate(Routes.PLAYER) })
@@ -112,15 +117,12 @@ fun ZRunApp() {
 
         if (showBars) {
             Column(
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .navigationBarsPadding()
+                modifier = Modifier.align(Alignment.BottomCenter)
             ) {
                 if (song != null) {
                     ZRMiniPlayer(
                         song = song, isPlaying = isPlaying, progress = progress,
                         onPlayPause = { player.togglePlayPause() },
-                        onNext = { player.skipNext() },
                         onClick = { nav.navigate(Routes.PLAYER) },
                         modifier = Modifier.padding(bottom = 8.dp)
                     )
@@ -145,53 +147,81 @@ private fun androidx.navigation.NavController.navigateTab(r: String) {
 
 @Composable
 private fun ZRBottomBar(current: String?, onTab: (String) -> Unit, onRun: () -> Unit) {
-    Box(
+    Column(
         Modifier
             .fillMaxWidth()
-            .height(74.dp)
-            .background(Color(0xCC101216))
+            .background(Color(0xF00A0B0E))
+            .navigationBarsPadding()
     ) {
+        Divider(color = ZR.Stroke, thickness = 1.dp)
         Row(
-            Modifier.fillMaxWidth().padding(horizontal = 6.dp, vertical = 8.dp),
-            horizontalArrangement = Arrangement.SpaceAround,
-            verticalAlignment = Alignment.CenterVertically
+            Modifier
+                .fillMaxWidth()
+                .height(78.dp)
+                .padding(top = 10.dp),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+            verticalAlignment = Alignment.Top
         ) {
-            NavTab("Home", Icons.Filled.Home, current == Routes.DASH) { onTab(Routes.DASH) }
-            NavTab("Musik", Icons.Filled.LibraryMusic, current == Routes.MUSIC) { onTab(Routes.MUSIC) }
-            RunFab(onRun)
-            NavTab("Feed", Icons.AutoMirrored.Filled.List, current == Routes.FEED) { onTab(Routes.FEED) }
-            NavTab("You", Icons.Filled.Person, current == Routes.PROFILE) { onTab(Routes.PROFILE) }
+            NavTab("Home", ZRIcons.Home, current == Routes.DASH, Modifier.weight(1f)) { onTab(Routes.DASH) }
+            NavTab("Musik", ZRIcons.Music, current == Routes.MUSIC, Modifier.weight(1f)) { onTab(Routes.MUSIC) }
+            RunTab(onRun, Modifier.weight(1f))
+            NavTab("Feed", ZRIcons.Feed, current == Routes.FEED, Modifier.weight(1f)) { onTab(Routes.FEED) }
+            NavTab("You", ZRIcons.User, current == Routes.PROFILE, Modifier.weight(1f)) { onTab(Routes.PROFILE) }
         }
     }
 }
 
 @Composable
-private fun RunFab(onRun: () -> Unit) {
-    Box(
-        modifier = Modifier
-            .size(58.dp)
-            .offset(y = (-18).dp)
-            .clip(CircleShape)
-            .background(ZR.Ember)
-            .clickable(onClick = onRun),
-        contentAlignment = Alignment.Center
-    ) {
-        Text("RUN", color = Color.White, fontWeight = FontWeight.Black, fontSize = 12.sp)
+private fun RunTab(onRun: () -> Unit, modifier: Modifier = Modifier) {
+    Column(modifier = modifier, horizontalAlignment = Alignment.CenterHorizontally) {
+        Box(
+            modifier = Modifier
+                .offset(y = (-28).dp)
+                .size(56.dp)
+                .clip(CircleShape)
+                .background(ZR.Ember)
+                .border(4.dp, ZR.Bg, CircleShape)
+                .clickable(onClick = onRun),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(ZRIcons.Flame, contentDescription = "Run", tint = Color.White, modifier = Modifier.size(24.dp))
+        }
+        Spacer(Modifier.height(2.dp))
+        Text("Run", style = zStyle(10.5.sp, FontWeight.Medium), color = ZR.Mut)
     }
 }
 
 @Composable
-private fun NavTab(label: String, icon: ImageVector, active: Boolean, onClick: () -> Unit) {
+private fun NavTab(
+    label: String,
+    icon: ImageVector,
+    active: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit
+) {
     Column(
-        modifier = Modifier
-            .clip(RoundedCornerShape(14.dp))
-            .clickable(interactionSource = MutableInteractionSource(), indication = null, onClick = onClick)
-            .padding(horizontal = 10.dp, vertical = 4.dp),
+        modifier = modifier
+            .sizeIn(minWidth = 48.dp, minHeight = 48.dp)
+            .clip(androidx.compose.foundation.shape.RoundedCornerShape(14.dp))
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = onClick
+            )
+            .padding(vertical = 2.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Icon(icon, label, tint = if (active) ZR.Ember2 else ZR.Faint, modifier = Modifier.size(24.dp))
-        Spacer(Modifier.height(3.dp))
-        Text(label, color = if (active) ZR.Tx else ZR.Faint, fontSize = 10.sp,
-            fontWeight = if (active) FontWeight.Bold else FontWeight.Medium)
+        Icon(
+            icon,
+            contentDescription = label,
+            tint = if (active) ZR.Ember else ZR.Faint,
+            modifier = Modifier.size(20.dp)
+        )
+        Spacer(Modifier.height(4.dp))
+        Text(
+            label,
+            style = zStyle(10.5.sp, if (active) FontWeight.Bold else FontWeight.Medium),
+            color = if (active) ZR.Tx else ZR.Faint
+        )
     }
 }

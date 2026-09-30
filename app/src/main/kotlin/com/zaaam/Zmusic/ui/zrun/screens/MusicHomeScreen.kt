@@ -1,7 +1,9 @@
 package com.zaaam.Zmusic.ui.zrun.screens
 
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,11 +19,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -35,10 +35,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -51,8 +51,14 @@ import com.zaaam.Zmusic.ui.player.PlayerViewModel
 import com.zaaam.Zmusic.ui.zrun.AddToPlaylistDialog
 import com.zaaam.Zmusic.ui.zrun.CreatePlaylistDialog
 import com.zaaam.Zmusic.ui.zrun.SectionHeader
-import com.zaaam.Zmusic.ui.zrun.SongRow
 import com.zaaam.Zmusic.ui.zrun.ZR
+import com.zaaam.Zmusic.ui.zrun.ZRArt
+import com.zaaam.Zmusic.ui.zrun.ZRIcons
+import com.zaaam.Zmusic.ui.zrun.ZRRow
+import com.zaaam.Zmusic.ui.zrun.ZRunSamples
+import com.zaaam.Zmusic.ui.zrun.fmtInt
+import com.zaaam.Zmusic.ui.zrun.playlistSongCount
+import com.zaaam.Zmusic.ui.zrun.zStyle
 
 @Composable
 fun MusicHomeScreen(
@@ -65,9 +71,6 @@ fun MusicHomeScreen(
 ) {
     val state by homeVm.state.collectAsState()
     val playlists by libVm.playlists.collectAsState()
-    val queue by player.queueManager.queue.collectAsState()
-    val idx by player.queueManager.currentIndex.collectAsState()
-    val currentId = queue.getOrNull(idx)?.id
 
     var songToAdd by remember { mutableStateOf<Song?>(null) }
     var showCreate by remember { mutableStateOf(false) }
@@ -80,84 +83,156 @@ fun MusicHomeScreen(
     }
 
     Column(
-        Modifier.fillMaxSize().background(ZR.Bg).verticalScroll(rememberScrollState())
-            .statusBarsPadding().padding(horizontal = 16.dp).padding(bottom = 150.dp)
+        Modifier
+            .fillMaxSize()
+            .background(ZR.Bg)
+            .statusBarsPadding()
+            .padding(top = 10.dp)
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp)
+            .padding(bottom = 150.dp)
     ) {
-        Text("Musik", color = ZR.Tx, fontWeight = FontWeight.ExtraBold, fontSize = 23.sp,
-            modifier = Modifier.padding(top = 8.dp))
-
-        // search bar
+        // 1. Search pill
         Row(
-            Modifier.fillMaxWidth().padding(top = 12.dp).height(44.dp)
-                .clip(RoundedCornerShape(14.dp)).background(ZR.S1)
-                .clickable(onClick = onOpenSearch).padding(horizontal = 14.dp),
+            Modifier
+                .fillMaxWidth()
+                .height(44.dp)
+                .clip(RoundedCornerShape(22.dp))
+                .background(ZR.S1)
+                .clickable(onClick = onOpenSearch)
+                .padding(horizontal = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Icon(Icons.Filled.Search, null, tint = ZR.Mut, modifier = Modifier.size(20.dp))
-            Spacer(Modifier.width(10.dp))
-            Text("Cari lagu, artis, atau playlist", color = ZR.Mut, fontSize = 13.sp)
+            Icon(ZRIcons.Search, contentDescription = "Cari", tint = ZR.Mut, modifier = Modifier.size(20.dp))
+            Text("Cari lagu, artis, playlist", style = zStyle(13.sp, FontWeight.Normal), color = ZR.Mut)
         }
 
         when (val s = state) {
             is HomeState.Loading -> {
                 Box(Modifier.fillMaxWidth().padding(top = 60.dp), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = ZR.Ember2)
+                    CircularProgressIndicator(color = ZR.Ember)
                 }
             }
             is HomeState.Error -> {
-                Text(s.message, color = ZR.Mut, fontSize = 13.sp, modifier = Modifier.padding(top = 40.dp))
+                Text(s.message, style = zStyle(13.sp, FontWeight.Normal), color = ZR.Mut,
+                    modifier = Modifier.padding(top = 40.dp))
             }
             is HomeState.Success -> {
                 val c = s.content
                 val running = c.trendingSongs.ifEmpty { c.allSongs }
 
-                // hero "dibuat untuk lari"
+                // 2. Hero
                 if (running.isNotEmpty()) {
+                    val heroTitle = c.heroSong?.title ?: running.first().title
                     Box(
-                        Modifier.fillMaxWidth().padding(top = 16.dp).height(150.dp)
-                            .clip(RoundedCornerShape(22.dp)).background(ZR.Music)
-                            .clickable { play(running.first(), running) }.padding(16.dp)
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(top = 14.dp)
+                            .height(130.dp)
+                            .clip(RoundedCornerShape(26.dp))
+                            .background(ZR.Violet)
+                            .clickable { play(running.first(), running) }
+                            .padding(16.dp)
                     ) {
                         Column(Modifier.align(Alignment.BottomStart)) {
-                            Text("DIBUAT UNTUK LARI", color = Color.White.copy(alpha = 0.9f),
-                                fontWeight = FontWeight.ExtraBold, fontSize = 11.sp, letterSpacing = 1.sp)
-                            Text("Power Mix", color = Color.White, fontWeight = FontWeight.ExtraBold, fontSize = 22.sp)
-                            Text("Tempo stabil buat lari", color = Color.White.copy(alpha = 0.85f), fontSize = 12.sp)
+                            Text(
+                                heroTitle,
+                                style = zStyle(22.sp, FontWeight.Bold),
+                                color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                "${fmtInt(running.size.toLong())} lagu untuk pace santai",
+                                style = zStyle(12.sp, FontWeight.Normal),
+                                color = Color.White.copy(alpha = 0.8f)
+                            )
                         }
-                        Box(Modifier.align(Alignment.BottomEnd).size(46.dp)
-                            .clip(RoundedCornerShape(23.dp)).background(Color.White), contentAlignment = Alignment.Center) {
-                            Icon(Icons.Filled.PlayArrow, null, tint = Color(0xFF16121D), modifier = Modifier.size(26.dp))
+                        Box(
+                            Modifier
+                                .align(Alignment.TopEnd)
+                                .size(42.dp)
+                                .clip(CircleShape)
+                                .background(Color.White),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                ZRIcons.Play, contentDescription = "Putar",
+                                tint = Color(0xFF14161B), modifier = Modifier.size(20.dp)
+                            )
                         }
                     }
                 }
 
-                // playlist kamu (+ tombol buat)
-                SectionHeader("Playlist kamu", action = "+ Buat", onAction = { showCreate = true })
-                if (playlists.isNotEmpty()) {
-                    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        items(playlists, key = { it.id }) { pl -> PlaylistCard(pl) { onOpenPlaylist(pl.id) } }
-                    }
-                } else {
-                    Text("Belum ada playlist. Tekan “+ Buat”, atau tekan-lama lagu untuk menambah.",
-                        color = ZR.Mut, fontSize = 12.5.sp)
-                }
-
-                // rekomendasi
-                if (c.featuredSongs.isNotEmpty()) {
-                    SectionHeader("Pilihan buatmu")
-                    c.featuredSongs.take(6).forEach { song ->
-                        SongRow(song = song, isPlaying = song.id == currentId,
-                            onClick = { play(song, c.featuredSongs) }, onLongClick = { songToAdd = song })
-                    }
-                }
-
+                // 3. Trending
                 if (running.isNotEmpty()) {
                     SectionHeader("Trending")
-                    running.take(10).forEach { song ->
-                        SongRow(song = song, isPlaying = song.id == currentId,
-                            onClick = { play(song, running) }, onLongClick = { songToAdd = song })
+                    LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                        items(running.take(10), key = { it.id }) { song ->
+                            @OptIn(ExperimentalFoundationApi::class)
+                            Column(
+                                Modifier
+                                    .width(92.dp)
+                                    .combinedClickable(
+                                        onClick = { play(song, running) },
+                                        onLongClick = { songToAdd = song }
+                                    )
+                            ) {
+                                ZRArt(seed = song.id, thumbnailUrl = song.thumbnailUrl, size = 92.dp, radius = 20.dp)
+                                Spacer(Modifier.height(6.dp))
+                                Text(
+                                    song.title,
+                                    style = zStyle(12.5.sp, FontWeight.SemiBold),
+                                    color = ZR.Tx, maxLines = 1, overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    song.artist,
+                                    style = zStyle(12.sp, FontWeight.Normal),
+                                    color = ZR.Mut, maxLines = 1, overflow = TextOverflow.Ellipsis
+                                )
+                            }
+                        }
                     }
                 }
+
+                // 4. Playlist kamu
+                SectionHeader("Playlist kamu")
+                if (playlists.isEmpty()) {
+                    Text(
+                        "Belum ada playlist. Pakai tombol buat di bawah.",
+                        style = zStyle(12.sp, FontWeight.Normal),
+                        color = ZR.Mut
+                    )
+                } else {
+                    playlists.forEachIndexed { i, pl ->
+                        val n = playlistSongCount(pl.id, player.musicRepository)
+                        ZRRow(
+                            onClick = { onOpenPlaylist(pl.id) },
+                            showDivider = i < playlists.size - 1
+                        ) {
+                            ZRArt(seed = pl.name, size = 48.dp, radius = 14.dp)
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    pl.name,
+                                    style = zStyle(14.sp, FontWeight.SemiBold),
+                                    color = ZR.Tx, maxLines = 1, overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    "${fmtInt(n.toLong())} lagu",
+                                    style = zStyle(12.sp, FontWeight.Normal),
+                                    color = ZR.Mut
+                                )
+                            }
+                        }
+                    }
+                }
+                Text(
+                    "Buat playlist",
+                    style = zStyle(13.sp, FontWeight.SemiBold),
+                    color = ZR.Ember,
+                    modifier = Modifier
+                        .clickable { showCreate = true }
+                        .padding(vertical = 9.dp)
+                )
             }
         }
     }
@@ -178,12 +253,60 @@ fun MusicHomeScreen(
     }
 }
 
+@Preview(showBackground = true, backgroundColor = 0xFF0A0B0E, widthDp = 360, heightDp = 780)
 @Composable
-private fun PlaylistCard(pl: PlaylistEntity, onClick: () -> Unit) {
-    Column(Modifier.width(120.dp).clickable(onClick = onClick)) {
-        Box(Modifier.size(120.dp).clip(RoundedCornerShape(14.dp)).background(ZR.artBrush(pl.name)))
-        Spacer(Modifier.height(7.dp))
-        Text(pl.name, color = ZR.Tx, fontWeight = FontWeight.Bold, fontSize = 13.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Text("Playlist", color = ZR.Mut, fontSize = 11.sp)
+private fun MusicPreview() {
+    Column(
+        Modifier.fillMaxSize().background(ZR.Bg).padding(horizontal = 16.dp)
+    ) {
+        Row(
+            Modifier
+                .fillMaxWidth()
+                .height(44.dp)
+                .clip(RoundedCornerShape(22.dp))
+                .background(ZR.S1)
+                .padding(horizontal = 14.dp),
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(ZRIcons.Search, contentDescription = "Cari", tint = ZR.Mut, modifier = Modifier.size(20.dp))
+            Text("Cari lagu, artis, playlist", style = zStyle(13.sp, FontWeight.Normal), color = ZR.Mut)
+        }
+        Box(
+            Modifier
+                .fillMaxWidth()
+                .padding(top = 14.dp)
+                .height(130.dp)
+                .clip(RoundedCornerShape(26.dp))
+                .background(ZR.Violet)
+                .padding(16.dp)
+        ) {
+            Column(Modifier.align(Alignment.BottomStart)) {
+                Text("Lari malam", style = zStyle(22.sp, FontWeight.Bold), color = Color.White)
+                Text("30 lagu untuk pace santai", style = zStyle(12.sp, FontWeight.Normal),
+                    color = Color.White.copy(alpha = 0.8f))
+            }
+            Box(
+                Modifier.align(Alignment.TopEnd).size(42.dp)
+                    .clip(CircleShape).background(Color.White),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(ZRIcons.Play, contentDescription = "Putar", tint = Color(0xFF14161B),
+                    modifier = Modifier.size(20.dp))
+            }
+        }
+        SectionHeader("Trending")
+        Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            ZRunSamples.songs.forEach { song ->
+                Column(Modifier.width(92.dp)) {
+                    ZRArt(seed = song.id, size = 92.dp, radius = 20.dp)
+                    Spacer(Modifier.height(6.dp))
+                    Text(song.title, style = zStyle(12.5.sp, FontWeight.SemiBold), color = ZR.Tx,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Text(song.artist, style = zStyle(12.sp, FontWeight.Normal), color = ZR.Mut,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+            }
+        }
     }
 }

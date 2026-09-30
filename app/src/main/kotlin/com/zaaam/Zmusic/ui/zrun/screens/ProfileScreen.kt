@@ -25,75 +25,181 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.zaaam.Zmusic.model.entity.ActivityEntity
 import com.zaaam.Zmusic.ui.tracking.ActivitiesViewModel
-import com.zaaam.Zmusic.ui.zrun.StatTile
+import com.zaaam.Zmusic.ui.zrun.SectionHeader
 import com.zaaam.Zmusic.ui.zrun.ZR
-import com.zaaam.Zmusic.ui.zrun.ZRCard
-import com.zaaam.Zmusic.util.LocationUtils
+import com.zaaam.Zmusic.ui.zrun.ZRProgress
+import com.zaaam.Zmusic.ui.zrun.ZRunSamples
+import com.zaaam.Zmusic.ui.zrun.fmtInt
+import com.zaaam.Zmusic.ui.zrun.fmtPaceQuote
+import com.zaaam.Zmusic.ui.zrun.startOfMonthMs
+import com.zaaam.Zmusic.ui.zrun.startOfYearMs
+import com.zaaam.Zmusic.ui.zrun.zStyle
+
+private const val YEAR_TARGET_KM = 1000.0
 
 @Composable
 fun ProfileScreen(vm: ActivitiesViewModel = hiltViewModel()) {
     val acts by vm.activities.collectAsState()
-    val totalKm = acts.sumOf { it.distanceMeters }
+    val now = System.currentTimeMillis()
+    val monthCount = acts.count { it.startTime >= startOfMonthMs(now) }
+    val totalMeters = acts.sumOf { it.distanceMeters }
+    val yearMeters = acts.filter { it.startTime >= startOfYearMs(now) }.sumOf { it.distanceMeters }
     val bestPace = acts.filter { it.distanceMeters > 300 }.minOfOrNull { it.avgPaceSecPerKm } ?: 0L
-    val yearTarget = 1000.0
+
+    ProfileContent(
+        monthCount = monthCount,
+        totalCount = acts.size,
+        totalMeters = totalMeters,
+        yearMeters = yearMeters,
+        bestPace = bestPace,
+        acts = acts
+    )
+}
+
+@Composable
+private fun ProfileContent(
+    monthCount: Int,
+    totalCount: Int,
+    totalMeters: Double,
+    yearMeters: Double,
+    bestPace: Long,
+    acts: List<ActivityEntity>
+) {
+    val badges = listOf(
+        "Lari pertama" to acts.isNotEmpty(),
+        "5 aktivitas" to (acts.size >= 5),
+        "Sub-6 pace" to (bestPace in 1..359),
+        "5 km pertama" to acts.any { it.distanceMeters >= 5_000 },
+        "10 km" to acts.any { it.distanceMeters >= 10_000 },
+        "100 km" to (totalMeters >= 100_000)
+    )
 
     Column(
-        Modifier.fillMaxSize().background(ZR.Bg).verticalScroll(rememberScrollState())
-            .statusBarsPadding().padding(horizontal = 16.dp).padding(bottom = 150.dp)
+        Modifier
+            .fillMaxSize()
+            .background(ZR.Bg)
+            .statusBarsPadding()
+            .padding(top = 8.dp)
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp)
+            .padding(bottom = 150.dp)
     ) {
-        Row(Modifier.padding(top = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Box(Modifier.size(64.dp).clip(CircleShape).background(ZR.MintG))
-            Spacer(Modifier.width(12.dp))
-            Column {
-                Text("Pelari", color = ZR.Tx, fontWeight = FontWeight.ExtraBold, fontSize = 23.sp)
-                Text("ZRun · ${acts.size} aktivitas", color = ZR.Mut, fontSize = 12.5.sp)
-            }
-        }
-
-        Row(Modifier.fillMaxWidth().padding(top = 16.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            StatTile("${acts.size}", "TOTAL LARI", Modifier.weight(1f))
-            StatTile(LocationUtils.formatDistanceKm(totalKm), "TOTAL KM", Modifier.weight(1f))
-            StatTile(if (bestPace > 0) "${LocationUtils.formatPace(bestPace)}" else "--:--", "PACE TERBAIK", Modifier.weight(1f), ZR.Mint)
-        }
-
-        Text("Target tahunan", color = ZR.Tx, fontWeight = FontWeight.ExtraBold, fontSize = 17.sp,
-            modifier = Modifier.padding(top = 22.dp, bottom = 10.dp))
-        ZRCard(Modifier.fillMaxWidth()) {
-            Column(Modifier.padding(14.dp)) {
-                Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                    Text("Progress", color = ZR.Mut, fontWeight = FontWeight.Bold, fontSize = 12.sp)
-                    Text("${LocationUtils.formatDistanceKm(totalKm)} / ${yearTarget.toInt()} km", color = ZR.Tx, fontSize = 12.sp, fontWeight = FontWeight.Bold)
-                }
-                Spacer(Modifier.height(9.dp))
-                Box(Modifier.fillMaxWidth().height(8.dp).clip(RoundedCornerShape(5.dp)).background(ZR.S3)) {
-                    Box(Modifier.fillMaxWidth((totalKm / 1000.0 / yearTarget).coerceIn(0.0, 1.0).toFloat())
-                        .height(8.dp).background(ZR.Ember))
+        // 1. Identitas rata tengah
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .padding(bottom = 16.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Box(
+                Modifier.size(90.dp).clip(CircleShape).background(ZR.Ember),
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    Modifier.size(84.dp).clip(CircleShape).background(ZR.Bg),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(Modifier.size(78.dp).clip(CircleShape).background(ZR.Mint))
                 }
             }
+            Spacer(Modifier.height(10.dp))
+            Text("Pelari", style = zStyle(22.sp, FontWeight.Bold), color = ZR.Tx)
+            Text(
+                "${fmtInt(monthCount.toLong())} aktivitas bulan ini",
+                style = zStyle(12.sp, FontWeight.Normal),
+                color = ZR.Mut
+            )
         }
 
-        Text("Lencana", color = ZR.Tx, fontWeight = FontWeight.ExtraBold, fontSize = 17.sp,
-            modifier = Modifier.padding(top = 22.dp, bottom = 10.dp))
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            Badge("🏅", "Lari pertama", acts.isNotEmpty(), Modifier.weight(1f))
-            Badge("🔥", "5 aktivitas", acts.size >= 5, Modifier.weight(1f))
-            Badge("⚡", "Sub-6 pace", bestPace in 1..359, Modifier.weight(1f))
+        // 2. Tiga statistik (tanpa card)
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceEvenly) {
+            YouStat(fmtInt(totalCount.toLong()), "Lari")
+            YouStat(fmtInt((totalMeters / 1000).toLong()), "Total km")
+            YouStat(fmtPaceQuote(bestPace), "Pace terbaik")
+        }
+
+        // 3. Target tahun ini
+        SectionHeader("Target tahun ini")
+        Spacer(Modifier.height(4.dp))
+        val yearKm = yearMeters / 1000.0
+        ZRProgress(
+            fraction = (yearKm / YEAR_TARGET_KM).toFloat(),
+            height = 10.dp,
+            fill = ZR.Ember
+        )
+        Spacer(Modifier.height(6.dp))
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+            Text(
+                "${fmtInt(yearKm.toLong())} km",
+                style = zStyle(12.sp, FontWeight.Normal),
+                color = ZR.Mut
+            )
+            Text(
+                "${fmtInt(YEAR_TARGET_KM.toLong())} km",
+                style = zStyle(12.sp, FontWeight.Normal),
+                color = ZR.Mut
+            )
+        }
+
+        // 4. Lencana
+        SectionHeader("Lencana")
+        badges.chunked(3).forEach { row ->
+            Row(
+                Modifier.fillMaxWidth().padding(vertical = 7.dp),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                row.forEach { (label, open) ->
+                    Column(
+                        Modifier.weight(1f),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Box(
+                            Modifier
+                                .size(54.dp)
+                                .clip(CircleShape)
+                                .background(if (open) ZR.Ember else ZR.S2)
+                        )
+                        Spacer(Modifier.height(6.dp))
+                        Text(
+                            label,
+                            style = zStyle(11.5.sp, FontWeight.Normal),
+                            color = if (open) ZR.Tx else ZR.Mut,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            }
         }
     }
 }
 
 @Composable
-private fun Badge(emoji: String, label: String, unlocked: Boolean, modifier: Modifier = Modifier) {
-    ZRCard(modifier) {
-        Column(Modifier.fillMaxWidth().padding(14.dp), horizontalAlignment = Alignment.CenterHorizontally) {
-            Text(emoji, fontSize = 26.sp, modifier = Modifier.then(if (unlocked) Modifier else Modifier))
-            Spacer(Modifier.height(8.dp))
-            Text(label, color = if (unlocked) ZR.Tx else ZR.Faint, fontWeight = FontWeight.Bold, fontSize = 11.sp,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center)
-        }
+private fun YouStat(value: String, label: String) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        Text(value, style = zStyle(22.sp, FontWeight.Bold), color = ZR.Tx)
+        Spacer(Modifier.height(2.dp))
+        Text(label, style = zStyle(12.sp, FontWeight.Normal), color = ZR.Mut)
+    }
+}
+
+@Preview(showBackground = true, backgroundColor = 0xFF0A0B0E, widthDp = 360, heightDp = 780)
+@Composable
+private fun ProfilePreview() {
+    Box(Modifier.fillMaxSize().background(ZR.Bg)) {
+        ProfileContent(
+            monthCount = 14,
+            totalCount = 38,
+            totalMeters = 312_000.0,
+            yearMeters = 312_000.0,
+            bestPace = 288L,
+            acts = ZRunSamples.activities
+        )
     }
 }

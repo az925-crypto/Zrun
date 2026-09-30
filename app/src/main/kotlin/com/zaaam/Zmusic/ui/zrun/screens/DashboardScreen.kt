@@ -1,7 +1,7 @@
 package com.zaaam.Zmusic.ui.zrun.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -18,10 +18,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.DirectionsRun
-import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
@@ -29,19 +25,39 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.zaaam.Zmusic.model.Song
+import com.zaaam.Zmusic.model.entity.ActivityEntity
+import com.zaaam.Zmusic.model.entity.PlaylistEntity
+import com.zaaam.Zmusic.ui.library.LibraryViewModel
 import com.zaaam.Zmusic.ui.player.PlayerViewModel
 import com.zaaam.Zmusic.ui.tracking.ActivitiesViewModel
-import com.zaaam.Zmusic.ui.zrun.ArtBox
 import com.zaaam.Zmusic.ui.zrun.EmberButton
-import com.zaaam.Zmusic.ui.zrun.ProgressRing
+import com.zaaam.Zmusic.ui.zrun.SectionHeader
 import com.zaaam.Zmusic.ui.zrun.ZR
-import com.zaaam.Zmusic.ui.zrun.ZRCard
-import com.zaaam.Zmusic.util.LocationUtils
+import com.zaaam.Zmusic.ui.zrun.ZRArt
+import com.zaaam.Zmusic.ui.zrun.ZRBigNumber
+import com.zaaam.Zmusic.ui.zrun.ZREqBars
+import com.zaaam.Zmusic.ui.zrun.ZRIcons
+import com.zaaam.Zmusic.ui.zrun.ZRRow
+import com.zaaam.Zmusic.ui.zrun.ZRRouteThumb
+import com.zaaam.Zmusic.ui.zrun.ZRunSamples
+import com.zaaam.Zmusic.ui.zrun.fmtInt
+import com.zaaam.Zmusic.ui.zrun.fmtKm1
+import com.zaaam.Zmusic.ui.zrun.fmtPaceQuote
+import com.zaaam.Zmusic.ui.zrun.greetingNow
+import com.zaaam.Zmusic.ui.zrun.playlistSongCount
+import com.zaaam.Zmusic.ui.zrun.startOfWeekMs
+import com.zaaam.Zmusic.ui.zrun.weekdayId
+import com.zaaam.Zmusic.ui.zrun.zStyle
+
+private const val WEEK_TARGET_KM = 25.0
+private val DAY_LABELS = listOf("S", "S", "R", "K", "J", "S", "M")
 
 @Composable
 fun DashboardScreen(
@@ -49,117 +65,251 @@ fun DashboardScreen(
     onStartRun: () -> Unit,
     onOpenMusic: () -> Unit,
     onOpenPlayer: () -> Unit,
-    activitiesVm: ActivitiesViewModel = hiltViewModel()
+    activitiesVm: ActivitiesViewModel = hiltViewModel(),
+    libVm: LibraryViewModel = hiltViewModel()
 ) {
     val activities by activitiesVm.activities.collectAsState()
+    val playlists by libVm.playlists.collectAsState()
     val queue by player.queueManager.queue.collectAsState()
     val idx by player.queueManager.currentIndex.collectAsState()
     val song = queue.getOrNull(idx)
+    val isPlaying by player.isPlaying.collectAsState()
 
-    val weekTarget = 25.0
-    val nowMs = System.currentTimeMillis()
-    val weekMeters = activities.filter { nowMs - it.startTime < 7L * 24 * 3600 * 1000 }
-        .sumOf { it.distanceMeters }
-    val weekKm = weekMeters / 1000.0
+    val now = System.currentTimeMillis()
+    val weekStart = startOfWeekMs(now)
+    val weekMeters = activities.filter { it.startTime >= weekStart }.sumOf { it.distanceMeters }
+    val dayKm = (0..6).map { d ->
+        val s = weekStart + d * 86_400_000L
+        activities.filter { it.startTime in s until s + 86_400_000L }.sumOf { it.distanceMeters } / 1000.0
+    }
+    val todayIdx = ((now - weekStart) / 86_400_000L).toInt().coerceIn(0, 6)
 
+    DashboardContent(
+        greeting = greetingNow(),
+        weekKm = weekMeters / 1000.0,
+        dayKm = dayKm,
+        todayIdx = todayIdx,
+        song = song,
+        isPlaying = isPlaying,
+        playlists = playlists,
+        playlistCount = { id -> playlistSongCount(id, player.musicRepository) },
+        last = activities.firstOrNull(),
+        onStartRun = onStartRun,
+        onOpenMusic = onOpenMusic,
+        onOpenPlayer = onOpenPlayer
+    )
+}
+
+@Composable
+private fun DashboardContent(
+    greeting: String,
+    weekKm: Double,
+    dayKm: List<Double>,
+    todayIdx: Int,
+    song: Song?,
+    isPlaying: Boolean,
+    playlists: List<PlaylistEntity>,
+    playlistCount: @Composable (Long) -> Int,
+    last: ActivityEntity?,
+    onStartRun: () -> Unit,
+    onOpenMusic: () -> Unit,
+    onOpenPlayer: () -> Unit
+) {
     Column(
         Modifier
             .fillMaxSize()
-            .verticalScroll(rememberScrollState())
+            .background(ZR.Bg)
             .statusBarsPadding()
+            .padding(top = 10.dp)
+            .verticalScroll(rememberScrollState())
             .padding(horizontal = 16.dp)
             .padding(bottom = 150.dp)
     ) {
-        Row(Modifier.fillMaxWidth().padding(top = 8.dp), horizontalArrangement = Arrangement.SpaceBetween) {
+        // 1. Header
+        Row(
+            Modifier.fillMaxWidth().padding(bottom = 10.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
             Column {
-                Text("Selamat datang 👋", color = ZR.Mut, fontSize = 12.5.sp)
-                Text("Pelari", color = ZR.Tx, fontWeight = FontWeight.ExtraBold, fontSize = 23.sp)
+                Text(greeting, style = zStyle(12.sp, FontWeight.Normal), color = ZR.Mut)
+                Text("Pelari", style = zStyle(26.sp, FontWeight.Bold, (-0.52).sp), color = ZR.Tx)
             }
-            Box(Modifier.size(40.dp).clip(CircleShape).background(ZR.MintG))
+            Box(Modifier.size(38.dp).clip(CircleShape).background(ZR.Mint))
         }
 
-        // Ring target mingguan
-        ZRCard(Modifier.fillMaxWidth().padding(top = 16.dp)) {
-            Row(Modifier.padding(16.dp), verticalAlignment = Alignment.CenterVertically) {
-                Box(contentAlignment = Alignment.Center) {
-                    ProgressRing(progress = (weekKm / weekTarget).toFloat(), size = 84)
-                }
-                Spacer(Modifier.width(16.dp))
-                Column {
-                    Text("Target mingguan", color = ZR.Mut, fontSize = 12.sp)
-                    Row(verticalAlignment = Alignment.Bottom) {
-                        Text(LocationUtils.formatDistanceKm(weekMeters), color = ZR.Tx,
-                            fontWeight = FontWeight.ExtraBold, fontSize = 26.sp)
-                        Text(" / ${weekTarget.toInt()} km", color = ZR.Mut, fontSize = 14.sp,
-                            modifier = Modifier.padding(bottom = 3.dp))
-                    }
-                    Text("🔥 ${activities.size} aktivitas total", color = ZR.Mut, fontSize = 12.sp,
-                        modifier = Modifier.padding(top = 6.dp))
-                }
-            }
-        }
+        // 2. Progres minggu
+        val weekMeters = weekKm * 1000.0
+        ZRBigNumber(fmtKm1(weekMeters), "km")
+        Spacer(Modifier.height(6.dp))
+        val sisa = (WEEK_TARGET_KM - weekKm).coerceAtLeast(0.0)
+        Text(
+            "dari target ${fmtInt(WEEK_TARGET_KM.toLong())} km · sisa ${fmtKm1(sisa * 1000)} km",
+            style = zStyle(12.sp, FontWeight.Normal),
+            color = ZR.Mut
+        )
+        WeekStrip(dayKm = dayKm, todayIdx = todayIdx)
 
+        // 3. CTA
         EmberButton(
-            text = "MULAI LARI",
-            icon = Icons.Filled.DirectionsRun,
+            text = "Mulai lari",
+            icon = ZRIcons.Flame,
             modifier = Modifier.fillMaxWidth().padding(top = 16.dp),
             onClick = onStartRun
         )
 
-        // Lanjut dengerin
-        if (song != null) {
-            Text("Lagi diputar", color = ZR.Tx, fontWeight = FontWeight.ExtraBold, fontSize = 17.sp,
-                modifier = Modifier.padding(top = 22.dp, bottom = 10.dp))
-            ZRCard(Modifier.fillMaxWidth()) {
-                Row(Modifier.padding(10.dp).clickable(onClick = onOpenPlayer), verticalAlignment = Alignment.CenterVertically) {
-                    ArtBox(seed = song.id, thumbnailUrl = song.thumbnailUrl, size = 46)
-                    Spacer(Modifier.width(11.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(song.title, color = ZR.Tx, fontWeight = FontWeight.Bold, fontSize = 14.sp, maxLines = 1)
-                        Text(song.artist, color = ZR.Mut, fontSize = 12.sp, maxLines = 1)
-                    }
-                    Box(Modifier.size(38.dp).clip(CircleShape).background(ZR.Ember), contentAlignment = Alignment.Center) {
-                        Icon(Icons.Filled.PlayArrow, null, tint = Color.White, modifier = Modifier.size(22.dp))
-                    }
+        // 4. Soundtrack lari
+        SectionHeader("Soundtrack lari")
+        val pl = playlists.lastOrNull()
+        if (pl != null) {
+            val n = playlistCount(pl.id)
+            ZRRow(onClick = onOpenMusic) {
+                ZRArt(seed = pl.name, size = 48.dp, radius = 14.dp)
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        pl.name,
+                        style = zStyle(14.sp, FontWeight.SemiBold),
+                        color = ZR.Tx, maxLines = 1, overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        "Playlist · ${fmtInt(n.toLong())} lagu",
+                        style = zStyle(12.sp, FontWeight.Normal),
+                        color = ZR.Mut
+                    )
                 }
+                if (isPlaying) ZREqBars()
+            }
+        } else if (song != null) {
+            ZRRow(onClick = onOpenPlayer) {
+                ZRArt(seed = song.id, thumbnailUrl = song.thumbnailUrl, size = 48.dp, radius = 14.dp)
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        song.title,
+                        style = zStyle(14.sp, FontWeight.SemiBold),
+                        color = ZR.Tx, maxLines = 1, overflow = TextOverflow.Ellipsis
+                    )
+                    Text(song.artist, style = zStyle(12.sp, FontWeight.Normal), color = ZR.Mut,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                if (isPlaying) ZREqBars()
             }
         } else {
-            Text("Musik", color = ZR.Tx, fontWeight = FontWeight.ExtraBold, fontSize = 17.sp,
-                modifier = Modifier.padding(top = 22.dp, bottom = 10.dp))
-            ZRCard(Modifier.fillMaxWidth()) {
-                Row(Modifier.padding(14.dp).fillMaxWidth().clickable(onClick = onOpenMusic),
-                    verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(44.dp).clip(RoundedCornerShape(12.dp)).background(ZR.Music))
-                    Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text("Pilih soundtrack lari", color = ZR.Tx, fontWeight = FontWeight.Bold, fontSize = 14.sp)
-                        Text("Cari & putar lagu dari YouTube", color = ZR.Mut, fontSize = 12.sp)
-                    }
+            ZRRow(onClick = onOpenMusic) {
+                ZRArt(seed = "kosong", size = 48.dp, radius = 14.dp)
+                Column(Modifier.weight(1f)) {
+                    Text("Pilih soundtrack lari", style = zStyle(14.sp, FontWeight.SemiBold), color = ZR.Tx)
+                    Text("Cari lagu dari YouTube", style = zStyle(12.sp, FontWeight.Normal), color = ZR.Mut)
                 }
             }
         }
 
-        // Lari terakhir
-        val last = activities.firstOrNull()
+        // 5. Terakhir
         if (last != null) {
-            Text("Lari terakhir", color = ZR.Tx, fontWeight = FontWeight.ExtraBold, fontSize = 17.sp,
-                modifier = Modifier.padding(top = 22.dp, bottom = 10.dp))
-            ZRCard(Modifier.fillMaxWidth()) {
-                Row(Modifier.padding(13.dp), verticalAlignment = Alignment.CenterVertically) {
-                    Box(Modifier.size(46.dp).clip(RoundedCornerShape(13.dp)).background(Color(0x24FF2E63)),
-                        contentAlignment = Alignment.Center) {
-                        Icon(Icons.Filled.DirectionsRun, null, tint = ZR.Ember2, modifier = Modifier.size(24.dp))
-                    }
-                    Spacer(Modifier.width(12.dp))
-                    Column(Modifier.weight(1f)) {
-                        Text(last.title, color = ZR.Tx, fontWeight = FontWeight.Bold, fontSize = 14.sp, maxLines = 1)
-                        Text("${LocationUtils.formatDistanceKm(last.distanceMeters)} km · ${LocationUtils.formatDuration(last.durationMillis)}",
-                            color = ZR.Mut, fontSize = 12.sp)
-                    }
-                    Text("${LocationUtils.formatPace(last.avgPaceSecPerKm)}/km", color = ZR.Mint,
-                        fontWeight = FontWeight.ExtraBold, fontSize = 15.sp)
+            SectionHeader("Terakhir")
+            ZRRow {
+                ZRRouteThumb(route = last.route)
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        last.title,
+                        style = zStyle(14.sp, FontWeight.SemiBold),
+                        color = ZR.Tx, maxLines = 1, overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        "${weekdayId(last.startTime)} · ${fmtKm1(last.distanceMeters)} km",
+                        style = zStyle(12.sp, FontWeight.Normal),
+                        color = ZR.Mut
+                    )
                 }
+                Text(
+                    fmtPaceQuote(last.avgPaceSecPerKm),
+                    style = zStyle(14.sp, FontWeight.SemiBold),
+                    color = ZR.Tx
+                )
             }
         }
+    }
+}
+
+@Composable
+private fun WeekStrip(dayKm: List<Double>, todayIdx: Int) {
+    val maxKm = dayKm.maxOrNull()?.takeIf { it > 0 } ?: 1.0
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .height(64.dp)
+            .padding(top = 14.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        dayKm.forEachIndexed { i, km ->
+            val isToday = i == todayIdx
+            val isFuture = i > todayIdx
+            Column(
+                Modifier.weight(1f).fillMaxSize(),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Bottom
+            ) {
+                when {
+                    km > 0 -> Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .height(((km / maxKm * 44).toFloat()).coerceAtLeast(6f).dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(ZR.Ember)
+                    )
+                    isToday -> Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .height(20.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .border(1.5.dp, ZR.Ember, RoundedCornerShape(8.dp))
+                    )
+                    else -> Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .height(6.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(ZR.S2)
+                    )
+                }
+                Spacer(Modifier.height(5.dp))
+                Text(
+                    DAY_LABELS[i],
+                    style = zStyle(
+                        11.sp,
+                        if (isToday) FontWeight.Bold else FontWeight.Normal
+                    ),
+                    color = if (isToday || km > 0 && !isFuture) ZR.Tx else ZR.Mut
+                )
+            }
+        }
+    }
+}
+
+@Preview(showBackground = true, backgroundColor = 0xFF0A0B0E, widthDp = 360, heightDp = 780)
+@Composable
+private fun DashboardPreview() {
+    val acts = ZRunSamples.activities
+    val now = System.currentTimeMillis()
+    val weekStart = startOfWeekMs(now)
+    val dayKm = (0..6).map { d ->
+        val s = weekStart + d * 86_400_000L
+        acts.filter { it.startTime in s until s + 86_400_000L }.sumOf { it.distanceMeters } / 1000.0
+    }
+    Box(Modifier.fillMaxSize().background(ZR.Bg)) {
+        DashboardContent(
+            greeting = "Selamat pagi",
+            weekKm = 12.4,
+            dayKm = listOf(7.2, 5.2, 0.0, 0.0, 0.0, 0.0, 0.0).let {
+                // selaraskan dengan strip: index hari ini
+                it
+            },
+            todayIdx = 2,
+            song = ZRunSamples.song,
+            isPlaying = true,
+            playlists = emptyList(),
+            playlistCount = { 0 },
+            last = acts.first(),
+            onStartRun = {}, onOpenMusic = {}, onOpenPlayer = {}
+        )
     }
 }
