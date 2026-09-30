@@ -1,6 +1,7 @@
 package com.zaaam.Zmusic.ui.zrun
 
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.ExperimentalTextApi
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.Font
 import androidx.compose.ui.text.font.FontFamily
@@ -52,6 +53,7 @@ object ZR {
 }
 
 /** Bricolage Grotesque (variable OFL, dibundel offline di res/font). */
+@OptIn(ExperimentalTextApi::class)
 private fun brico(weight: FontWeight, v: Int) = Font(
     R.font.bricolage_grotesque,
     weight,
