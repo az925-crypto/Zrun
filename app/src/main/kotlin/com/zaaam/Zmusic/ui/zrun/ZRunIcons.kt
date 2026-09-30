@@ -68,6 +68,8 @@ object ZRIcons {
         "M20 20l-4-4"
     )
 
+    val ChevronDown: ImageVector = outline("M6 9l6 6 6-6")
+
     val Play: ImageVector = solid("M7 4.5v15l12.5-7.5z")
 
     val Pause: ImageVector = solid("M7 4h3.5v16H7zM13.5 4H17v16h-3.5z")

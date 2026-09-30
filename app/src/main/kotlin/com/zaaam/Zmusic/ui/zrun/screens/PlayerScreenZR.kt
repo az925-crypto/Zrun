@@ -157,14 +157,13 @@ private fun PlayerContent(
     ) {
         // Bar atas: tombol kembali + judul rata tengah
         Box(Modifier.fillMaxWidth().padding(top = 6.dp)) {
-            Text(
-                "Tutup",
-                style = zStyle(13.sp, FontWeight.SemiBold),
-                color = ZR.Mut,
-                modifier = Modifier
-                    .align(Alignment.CenterStart)
-                    .clickable(onClick = onClose)
-                    .padding(12.dp)
+            ZRIconButton(
+                icon = ZRIcons.ChevronDown,
+                desc = "Tutup",
+                onClick = onClose,
+                tint = Color.White,
+                iconSize = 20.dp,
+                modifier = Modifier.align(Alignment.CenterStart)
             )
             Text(
                 "Sedang diputar",

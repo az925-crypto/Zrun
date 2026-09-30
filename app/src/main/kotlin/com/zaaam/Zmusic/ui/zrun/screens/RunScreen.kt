@@ -2,6 +2,8 @@ package com.zaaam.Zmusic.ui.zrun.screens
 
 import android.Manifest
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.Paint
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -48,6 +50,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
@@ -59,15 +62,17 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.hilt.navigation.compose.hiltViewModel
+import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.CameraPosition
 import com.google.android.gms.maps.model.JointType
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.MapStyleOptions
 import com.google.android.gms.maps.model.RoundCap
-import com.google.maps.android.compose.Circle
 import com.google.maps.android.compose.GoogleMap
 import com.google.maps.android.compose.MapProperties
 import com.google.maps.android.compose.MapUiSettings
+import com.google.maps.android.compose.Marker
+import com.google.maps.android.compose.MarkerState
 import com.google.maps.android.compose.Polyline
 import com.google.maps.android.compose.rememberCameraPositionState
 import com.zaaam.Zmusic.model.GeoPoint
@@ -191,6 +196,21 @@ private fun RunContent(
     }
     val density = LocalDensity.current
     val polyWidth = remember { with(density) { 5.dp.toPx() } }
+    // Ikon titik posisi: lingkaran putih solid diameter 14dp (ukuran tetap di semua zoom)
+    val dotPx = remember(density) { with(density) { 14.dp.roundToPx() } }
+    val dotIcon = remember(dotPx) {
+        val bmp = Bitmap.createBitmap(dotPx, dotPx, Bitmap.Config.ARGB_8888)
+        val canvas = android.graphics.Canvas(bmp)
+        val paint = Paint().apply { isAntiAlias = true; color = android.graphics.Color.WHITE }
+        val r = dotPx / 2f
+        canvas.drawCircle(r, r, r, paint)
+        BitmapDescriptorFactory.fromBitmap(bmp)
+    }
+    val markerState = remember { MarkerState(position = LatLng(-6.2088, 106.8456)) }
+    val lastPoint = routeLatLng.lastOrNull()
+    androidx.compose.runtime.LaunchedEffect(lastPoint) {
+        if (lastPoint != null) markerState.position = lastPoint
+    }
 
     val seeking = data.route.isEmpty()
     val gpsText = if (seeking) "Mencari GPS" else "GPS aktif"
@@ -251,7 +271,13 @@ private fun RunContent(
                 )
             }
             routeLatLng.lastOrNull()?.let {
-                Circle(center = it, radius = 6.0, fillColor = Color.White, strokeWidth = 0f)
+                Marker(
+                    state = markerState,
+                    icon = dotIcon,
+                    anchor = Offset(0.5f, 0.5f),
+                    flat = false,
+                    zIndex = 2f
+                )
             }
         }
 
