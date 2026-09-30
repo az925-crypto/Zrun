@@ -1,5 +1,8 @@
 package com.zaaam.Zmusic.ui.zrun
 
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -83,7 +86,36 @@ fun ZRunApp() {
 
     CompositionLocalProvider(LocalContentColor provides ZR.Tx) {
         Box(Modifier.fillMaxSize().background(ZR.Bg)) {
-            NavHost(navController = nav, startDestination = Routes.DASH, modifier = Modifier.fillMaxSize()) {
+            NavHost(
+                navController = nav,
+                startDestination = Routes.DASH,
+                modifier = Modifier.fillMaxSize(),
+                // Transisi berenergi: layar meluncur cepat dengan pegas, tanpa fade
+                enterTransition = {
+                    slideInHorizontally(
+                        initialOffsetX = { it },
+                        animationSpec = spring(stiffness = 1000f, dampingRatio = 0.85f)
+                    )
+                },
+                exitTransition = {
+                    slideOutHorizontally(
+                        targetOffsetX = { -it / 3 },
+                        animationSpec = spring(stiffness = 1000f, dampingRatio = 0.85f)
+                    )
+                },
+                popEnterTransition = {
+                    slideInHorizontally(
+                        initialOffsetX = { -it / 3 },
+                        animationSpec = spring(stiffness = 1000f, dampingRatio = 0.85f)
+                    )
+                },
+                popExitTransition = {
+                    slideOutHorizontally(
+                        targetOffsetX = { it },
+                        animationSpec = spring(stiffness = 1000f, dampingRatio = 0.85f)
+                    )
+                }
+            ) {
                 composable(Routes.DASH) {
                     DashboardScreen(
                         player = player,

@@ -47,7 +47,7 @@ class ZmusicApp : Application() {
                         .maxSizeBytes(50L * 1024 * 1024) // 50MB disk cache untuk thumbnail
                         .build()
                 }
-                .crossfade(true)
+                .crossfade(false) // tanpa fade: artwork muncul dengan pop pegas (lihat ZRArt)
                 .build()
         )
     }

@@ -1,5 +1,7 @@
 package com.zaaam.Zmusic.ui.zrun
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
@@ -24,9 +26,11 @@ import androidx.compose.material3.Divider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
-import androidx.compose.ui.composed
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
+import androidx.compose.ui.composed
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -37,6 +41,7 @@ import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.PathEffect
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -127,9 +132,15 @@ fun ZRArt(
     modifier: Modifier = Modifier,
     thumbnailUrl: String? = null
 ) {
+    // Pop pegas saat artwork muncul/ganti (semangat, bukan fade)
+    val pop = remember(seed) { Animatable(0.85f) }
+    LaunchedEffect(seed) {
+        pop.animateTo(1f, spring(stiffness = 900f, dampingRatio = 0.65f))
+    }
     Box(
         modifier = modifier
             .size(size)
+            .graphicsLayer(scaleX = pop.value, scaleY = pop.value)
             .clip(RoundedCornerShape(radius))
             .background(ZR.artColor(seed))
     ) {
