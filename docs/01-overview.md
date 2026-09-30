@@ -32,7 +32,7 @@ Single-activity, 100% Jetpack Compose, design system **Ember** 🔥 (gelap + aks
 ## 🗂️ Struktur Repo (ringkas)
 
 ```
-Strava-app/
+Zrun/
 ├── 📖 README.md / LICENSE / NEWPIPE-EXTRACTOR.md
 ├── 📚 docs/                  ← kamu di sini
 ├── ⚙️ gradle/libs.versions.toml  ← single source of truth versi

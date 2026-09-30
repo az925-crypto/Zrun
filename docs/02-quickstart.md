@@ -19,8 +19,8 @@ adb --version
 ## 📥 1. Clone & Buka
 
 ```bash
-git clone https://github.com/az925-crypto/Strava-app
-cd Strava-app
+git clone https://github.com/az925-crypto/Zrun
+cd Zrun
 ```
 
 Buka di Android Studio (atau code editor + terminal).
