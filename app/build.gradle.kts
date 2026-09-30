@@ -35,8 +35,8 @@ android {
         // versionCode WAJIB naik tiap rilis — Android menolak update APK dengan
         // versionCode <= yang terpasang (user terpaksa uninstall = data Room hilang).
         // Konvensi: versionName X.Y.Z -> versionCode X*100+Y*10+Z (1.0.0 -> 100)
-        versionCode = 101
-        versionName = "1.0.1"
+        versionCode = 102
+        versionName = "1.0.2"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
