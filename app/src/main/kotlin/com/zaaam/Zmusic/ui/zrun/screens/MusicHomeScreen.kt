@@ -56,6 +56,7 @@ import com.zaaam.Zmusic.ui.zrun.ZRArt
 import com.zaaam.Zmusic.ui.zrun.ZRIcons
 import com.zaaam.Zmusic.ui.zrun.ZRRow
 import com.zaaam.Zmusic.ui.zrun.ZRunSamples
+import com.zaaam.Zmusic.ui.zrun.dashedOutline
 import com.zaaam.Zmusic.ui.zrun.fmtInt
 import com.zaaam.Zmusic.ui.zrun.playlistSongCount
 import com.zaaam.Zmusic.ui.zrun.zStyle
@@ -197,11 +198,28 @@ fun MusicHomeScreen(
                 // 4. Playlist kamu
                 SectionHeader("Playlist kamu")
                 if (playlists.isEmpty()) {
-                    Text(
-                        "Belum ada playlist. Pakai tombol buat di bawah.",
-                        style = zStyle(12.sp, FontWeight.Normal),
-                        color = ZR.Mut
-                    )
+                    ZRRow(onClick = { showCreate = true }) {
+                        Box(
+                            Modifier
+                                .size(48.dp)
+                                .dashedOutline(Color(0xFF3A3F4A), radius = 14.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text("+", style = zStyle(24.sp, FontWeight.Normal), color = ZR.Mut)
+                        }
+                        Column(Modifier.weight(1f)) {
+                            Text(
+                                "Buat playlist pertamamu",
+                                style = zStyle(14.sp, FontWeight.SemiBold),
+                                color = ZR.Tx, maxLines = 1, overflow = TextOverflow.Ellipsis
+                            )
+                            Text(
+                                "Simpan lagu favorit untuk lari",
+                                style = zStyle(12.sp, FontWeight.Normal),
+                                color = ZR.Mut
+                            )
+                        }
+                    }
                 } else {
                     playlists.forEachIndexed { i, pl ->
                         val n = playlistSongCount(pl.id, player.musicRepository)
@@ -224,15 +242,15 @@ fun MusicHomeScreen(
                             }
                         }
                     }
+                    Text(
+                        "Buat playlist",
+                        style = zStyle(13.sp, FontWeight.SemiBold),
+                        color = ZR.Ember,
+                        modifier = Modifier
+                            .clickable { showCreate = true }
+                            .padding(vertical = 9.dp)
+                    )
                 }
-                Text(
-                    "Buat playlist",
-                    style = zStyle(13.sp, FontWeight.SemiBold),
-                    color = ZR.Ember,
-                    modifier = Modifier
-                        .clickable { showCreate = true }
-                        .padding(vertical = 9.dp)
-                )
             }
         }
     }

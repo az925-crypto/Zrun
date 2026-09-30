@@ -25,12 +25,18 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.composed
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
+import androidx.compose.ui.geometry.Offset
+import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.StrokeJoin
 import androidx.compose.ui.graphics.drawscope.Stroke
@@ -194,16 +200,47 @@ fun ZRRouteThumb(
     }
 }
 
-/** Angka besar + satuan di samping (semua Bricolage tnum). */
+/** Angka besar + satuan di samping (semua Bricolage tnum, warna eksplisit). */
 @Composable
 fun ZRBigNumber(value: String, unit: String, size: TextUnit = 54.sp, modifier: Modifier = Modifier) {
-    Row(modifier = modifier, verticalAlignment = Alignment.Bottom) {
+    Row(modifier = modifier) {
         Text(
             value,
-            style = zStyle(size, FontWeight.Bold, ls = (size.value * -0.04f).sp)
+            style = zStyle(size, FontWeight.Bold, ls = (size.value * -0.04f).sp),
+            color = ZR.Tx,
+            modifier = Modifier.alignByBaseline()
         )
         Spacer(Modifier.width(5.dp))
-        Text(" $unit".trimStart(), style = zStyle(16.sp, FontWeight.Medium), color = ZR.Mut)
+        Text(
+            " $unit".trimStart(),
+            style = zStyle(16.sp, FontWeight.Medium),
+            color = ZR.Mut,
+            modifier = Modifier.alignByBaseline()
+        )
+    }
+}
+
+/** Outline putus-putus (untuk keadaan kosong): dashed 1.5dp. */
+fun Modifier.dashedOutline(
+    color: Color,
+    stroke: Dp = 1.5.dp,
+    radius: Dp = 8.dp,
+    on: Float = 8f,
+    off: Float = 6f
+): Modifier = composed {
+    val sw = with(LocalDensity.current) { stroke.toPx() }
+    val rr = with(LocalDensity.current) { radius.toPx() }
+    drawBehind {
+        drawRoundRect(
+            color = color,
+            topLeft = Offset(sw / 2, sw / 2),
+            size = Size(size.width - sw, size.height - sw),
+            cornerRadius = CornerRadius(rr, rr),
+            style = Stroke(
+                width = sw,
+                pathEffect = PathEffect.dashPathEffect(floatArrayOf(on, off), 0f)
+            )
+        )
     }
 }
 

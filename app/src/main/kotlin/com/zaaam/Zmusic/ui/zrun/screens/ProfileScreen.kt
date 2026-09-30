@@ -12,10 +12,8 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -30,19 +28,23 @@ import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
-import com.zaaam.Zmusic.model.entity.ActivityEntity
 import com.zaaam.Zmusic.ui.tracking.ActivitiesViewModel
 import com.zaaam.Zmusic.ui.zrun.SectionHeader
+import com.zaaam.Zmusic.ui.zrun.ZBadge
 import com.zaaam.Zmusic.ui.zrun.ZR
 import com.zaaam.Zmusic.ui.zrun.ZRProgress
 import com.zaaam.Zmusic.ui.zrun.ZRunSamples
+import com.zaaam.Zmusic.ui.zrun.dashedOutline
 import com.zaaam.Zmusic.ui.zrun.fmtInt
 import com.zaaam.Zmusic.ui.zrun.fmtPaceQuote
 import com.zaaam.Zmusic.ui.zrun.startOfMonthMs
 import com.zaaam.Zmusic.ui.zrun.startOfYearMs
+import com.zaaam.Zmusic.ui.zrun.zBadges
 import com.zaaam.Zmusic.ui.zrun.zStyle
+import kotlin.math.roundToInt
 
 private const val YEAR_TARGET_KM = 1000.0
+private const val RUNNER_NAME = "Pelari"
 
 @Composable
 fun ProfileScreen(vm: ActivitiesViewModel = hiltViewModel()) {
@@ -59,7 +61,7 @@ fun ProfileScreen(vm: ActivitiesViewModel = hiltViewModel()) {
         totalMeters = totalMeters,
         yearMeters = yearMeters,
         bestPace = bestPace,
-        acts = acts
+        badges = zBadges(acts)
     )
 }
 
@@ -70,16 +72,9 @@ private fun ProfileContent(
     totalMeters: Double,
     yearMeters: Double,
     bestPace: Long,
-    acts: List<ActivityEntity>
+    badges: List<ZBadge>
 ) {
-    val badges = listOf(
-        "Lari pertama" to acts.isNotEmpty(),
-        "5 aktivitas" to (acts.size >= 5),
-        "Sub-6 pace" to (bestPace in 1..359),
-        "5 km pertama" to acts.any { it.distanceMeters >= 5_000 },
-        "10 km" to acts.any { it.distanceMeters >= 10_000 },
-        "100 km" to (totalMeters >= 100_000)
-    )
+    val nearest = badges.firstOrNull { !it.open }
 
     Column(
         Modifier
@@ -106,13 +101,23 @@ private fun ProfileContent(
                     Modifier.size(84.dp).clip(CircleShape).background(ZR.Bg),
                     contentAlignment = Alignment.Center
                 ) {
-                    Box(Modifier.size(78.dp).clip(CircleShape).background(ZR.Mint))
+                    Box(
+                        Modifier.size(78.dp).clip(CircleShape).background(ZR.Mint),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            RUNNER_NAME.first().toString(),
+                            style = zStyle(32.sp, FontWeight.Bold),
+                            color = ZR.Bg
+                        )
+                    }
                 }
             }
             Spacer(Modifier.height(10.dp))
-            Text("Pelari", style = zStyle(22.sp, FontWeight.Bold), color = ZR.Tx)
+            Text(RUNNER_NAME, style = zStyle(22.sp, FontWeight.Bold), color = ZR.Tx)
             Text(
-                "${fmtInt(monthCount.toLong())} aktivitas bulan ini",
+                if (monthCount == 0) "Belum ada aktivitas bulan ini"
+                else "${fmtInt(monthCount.toLong())} aktivitas bulan ini",
                 style = zStyle(12.sp, FontWeight.Normal),
                 color = ZR.Mut
             )
@@ -130,7 +135,7 @@ private fun ProfileContent(
         Spacer(Modifier.height(4.dp))
         val yearKm = yearMeters / 1000.0
         ZRProgress(
-            fraction = (yearKm / YEAR_TARGET_KM).toFloat(),
+            fraction = (yearKm / YEAR_TARGET_KM).toFloat().coerceIn(0.03f, 1f),
             height = 10.dp,
             fill = ZR.Ember
         )
@@ -147,15 +152,22 @@ private fun ProfileContent(
                 color = ZR.Mut
             )
         }
+        Text(
+            "Sekitar ${fmtInt((YEAR_TARGET_KM / 52).roundToInt().toLong())} km per minggu untuk sampai ${fmtInt(YEAR_TARGET_KM.toLong())} km",
+            style = zStyle(12.sp, FontWeight.Normal),
+            color = ZR.Mut,
+            modifier = Modifier.padding(top = 6.dp)
+        )
 
         // 4. Lencana
         SectionHeader("Lencana")
         badges.chunked(3).forEach { row ->
             Row(
-                Modifier.fillMaxWidth().padding(vertical = 7.dp),
+                Modifier.fillMaxWidth().padding(vertical = 6.dp),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                row.forEach { (label, open) ->
+                row.forEach { b ->
+                    val isNearest = b == nearest
                     Column(
                         Modifier.weight(1f),
                         horizontalAlignment = Alignment.CenterHorizontally
@@ -164,13 +176,36 @@ private fun ProfileContent(
                             Modifier
                                 .size(54.dp)
                                 .clip(CircleShape)
-                                .background(if (open) ZR.Ember else ZR.S2)
-                        )
+                                .then(
+                                    when {
+                                        b.open -> Modifier.background(ZR.Ember)
+                                        isNearest -> Modifier.dashedOutline(ZR.Ember, radius = 27.dp)
+                                        else -> Modifier.background(ZR.S2)
+                                    }
+                                ),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                b.angka,
+                                style = zStyle(19.sp, FontWeight.Bold),
+                                color = when {
+                                    b.open -> ZR.Tx
+                                    isNearest -> ZR.Ember
+                                    else -> ZR.Mut
+                                }
+                            )
+                        }
                         Spacer(Modifier.height(6.dp))
                         Text(
-                            label,
+                            b.name,
                             style = zStyle(11.5.sp, FontWeight.Normal),
-                            color = if (open) ZR.Tx else ZR.Mut,
+                            color = if (b.open) ZR.Tx else ZR.Mut,
+                            textAlign = TextAlign.Center
+                        )
+                        Text(
+                            b.progress,
+                            style = zStyle(11.sp, FontWeight.Normal),
+                            color = ZR.Mut,
                             textAlign = TextAlign.Center
                         )
                     }
@@ -194,12 +229,28 @@ private fun YouStat(value: String, label: String) {
 private fun ProfilePreview() {
     Box(Modifier.fillMaxSize().background(ZR.Bg)) {
         ProfileContent(
+            monthCount = 0,
+            totalCount = 0,
+            totalMeters = 0.0,
+            yearMeters = 0.0,
+            bestPace = 0L,
+            badges = zBadges(emptyList())
+        )
+    }
+}
+
+@Preview(showBackground = true, backgroundColor = 0xFF0A0B0E, widthDp = 360, heightDp = 780)
+@Composable
+private fun ProfileFilledPreview() {
+    val acts = ZRunSamples.activities
+    Box(Modifier.fillMaxSize().background(ZR.Bg)) {
+        ProfileContent(
             monthCount = 14,
             totalCount = 38,
             totalMeters = 312_000.0,
             yearMeters = 312_000.0,
             bestPace = 288L,
-            acts = ZRunSamples.activities
+            badges = zBadges(acts)
         )
     }
 }

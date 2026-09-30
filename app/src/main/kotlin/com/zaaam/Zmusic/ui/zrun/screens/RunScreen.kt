@@ -5,17 +5,26 @@ import android.content.pm.PackageManager
 import android.os.Build
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.Orientation
+import androidx.compose.foundation.gestures.draggable
+import androidx.compose.foundation.gestures.rememberDraggableState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -33,6 +42,8 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -43,6 +54,7 @@ import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
@@ -55,6 +67,7 @@ import com.google.android.gms.maps.model.RoundCap
 import com.google.maps.android.compose.Circle
 import com.google.maps.android.compose.GoogleMap
 import com.google.maps.android.compose.MapProperties
+import com.google.maps.android.compose.MapUiSettings
 import com.google.maps.android.compose.Polyline
 import com.google.maps.android.compose.rememberCameraPositionState
 import com.zaaam.Zmusic.model.GeoPoint
@@ -68,7 +81,6 @@ import com.zaaam.Zmusic.ui.zrun.ZRArt
 import com.zaaam.Zmusic.ui.zrun.ZRBigNumber
 import com.zaaam.Zmusic.ui.zrun.ZREqBars
 import com.zaaam.Zmusic.ui.zrun.ZRIcons
-import com.zaaam.Zmusic.ui.zrun.ZRRouteThumb
 import com.zaaam.Zmusic.ui.zrun.ZRRow
 import com.zaaam.Zmusic.ui.zrun.fmtKm1
 import com.zaaam.Zmusic.ui.zrun.fmtPaceQuote
@@ -76,6 +88,7 @@ import com.zaaam.Zmusic.ui.zrun.zStyle
 import com.zaaam.Zmusic.util.LocationUtils
 import java.text.NumberFormat
 import java.util.Locale
+import kotlinx.coroutines.launch
 
 private val MAP_STYLE = """
 [
@@ -87,6 +100,8 @@ private val MAP_STYLE = """
   {"featureType":"transit","stylers":[{"visibility":"off"}]}
 ]
 """.trimIndent()
+
+private val PEEK_H = 104.dp
 
 @Composable
 fun RunScreen(
@@ -138,8 +153,7 @@ fun RunScreen(
         onMusic = { if (song != null) onOpenPlayer() else onOpenMusic() },
         onMain = {
             when {
-                finished -> { /* menunggu simpan */
-                }
+                finished -> { /* menunggu simpan */ }
                 !data.isTracking -> vm.start()
                 data.isPaused -> vm.resume()
                 else -> vm.pause()
@@ -178,27 +192,53 @@ private fun RunContent(
     val density = LocalDensity.current
     val polyWidth = remember { with(density) { 5.dp.toPx() } }
 
-    val gpsText = when {
-        data.route.isEmpty() -> "Mencari GPS"
-        data.route.size < 5 -> "GPS lemah"
-        else -> "GPS kuat"
-    }
+    val seeking = data.route.isEmpty()
+    val gpsText = if (seeking) "Mencari GPS" else "GPS aktif"
     val statusText = when {
         data.isTracking && !data.isPaused -> "Merekam"
         data.isPaused -> "Dijeda"
         data.elapsedMillis > 0 -> "Selesai"
         else -> "Siap"
     }
+    val moving = if (data.movingMillis > 0) data.movingMillis else data.elapsedMillis
+    val paceQ = fmtPaceQuote(pace(data.distanceMeters, moving))
 
-    Box(Modifier.fillMaxSize().background(ZR.Bg)) {
-        // Peta: atas sampai y=340dp, edge-to-edge di belakang status bar
+    BoxWithConstraints(Modifier.fillMaxSize().background(ZR.Bg)) {
+        val maxSheetH = maxHeight * 0.55f
+        val scope = rememberCoroutineScope()
+        var expanded by rememberSaveable { mutableStateOf(false) }
+        val anim = remember { Animatable(PEEK_H, Dp.VectorConverter) }
+        val sheetH = anim.value
+
+        fun snapTo(target: Boolean) {
+            expanded = target
+            scope.launch {
+                anim.animateTo(
+                    if (target) maxSheetH else PEEK_H,
+                    spring(stiffness = Spring.StiffnessMedium)
+                )
+            }
+        }
+        val drag = rememberDraggableState { delta ->
+            scope.launch {
+                anim.snapTo((anim.value + with(density) { delta.toDp() }).coerceIn(PEEK_H, maxSheetH))
+            }
+        }
+
+        // Peta mengisi seluruh layar di belakang sheet
         GoogleMap(
-            modifier = Modifier.fillMaxWidth().height(340.dp),
+            modifier = Modifier.fillMaxSize(),
             cameraPositionState = cam,
             properties = MapProperties(
                 isMyLocationEnabled = false,
                 mapStyleOptions = MapStyleOptions(MAP_STYLE)
-            )
+            ),
+            uiSettings = MapUiSettings(
+                zoomControlsEnabled = false,
+                mapToolbarEnabled = false,
+                myLocationButtonEnabled = false
+            ),
+            contentPadding = PaddingValues(bottom = sheetH)
         ) {
             if (routeLatLng.size >= 2) {
                 Polyline(
@@ -223,124 +263,254 @@ private fun RunContent(
                 .padding(top = 10.dp, start = 14.dp, end = 14.dp),
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            StatusPill(text = gpsText, dot = ZR.Mint)
+            StatusPill(text = gpsText, dot = if (seeking) ZR.Mut else ZR.Mint)
             StatusPill(text = statusText, dot = ZR.Stop)
         }
 
-        // Sheet bawah: mulai y=296dp
+        // Sheet bawah: collapsed 104dp, expanded sampai 55% layar
         Column(
             Modifier
-                .fillMaxSize()
-                .padding(top = 296.dp)
+                .align(Alignment.BottomCenter)
+                .fillMaxWidth()
+                .height(sheetH)
                 .clip(RoundedCornerShape(topStart = 30.dp, topEnd = 30.dp))
                 .background(ZR.S1)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp, vertical = 18.dp)
+                .navigationBarsPadding()
         ) {
-            Text("Jarak", style = zStyle(12.sp, FontWeight.Normal), color = ZR.Mut)
-            ZRBigNumber(fmtKm1(data.distanceMeters), "km", size = 66.sp)
-
-            Row(
-                Modifier.fillMaxWidth().padding(vertical = 14.dp),
-                horizontalArrangement = Arrangement.SpaceEvenly
-            ) {
-                RunStat(
-                    LocationUtils.formatDuration(data.elapsedMillis), "Durasi",
-                    Modifier.weight(1f)
-                )
-                val moving = if (data.movingMillis > 0) data.movingMillis else data.elapsedMillis
-                RunStat(
-                    fmtPaceQuote(pace(data.distanceMeters, moving)), "Pace",
-                    Modifier.weight(1f)
-                )
-                RunStat(
-                    NumberFormat.getNumberInstance(Locale("id", "ID")).apply {
-                        maximumFractionDigits = 1; minimumFractionDigits = 1
-                    }.format(data.currentSpeedKmh),
-                    "km/jam",
-                    Modifier.weight(1f)
-                )
-            }
-
-            if (song != null) {
-                ZRRow {
-                    ZRArt(seed = song.id, thumbnailUrl = song.thumbnailUrl, size = 40.dp, radius = 12.dp)
-                    Column(Modifier.weight(1f)) {
-                        Text(
-                            song.title,
-                            style = zStyle(14.sp, FontWeight.SemiBold),
-                            color = ZR.Tx, maxLines = 1
-                        )
-                        Text(
-                            song.artist,
-                            style = zStyle(12.sp, FontWeight.Normal),
-                            color = ZR.Mut, maxLines = 1
-                        )
-                    }
-                    if (isPlaying) ZREqBars()
-                }
-            } else {
-                ZRRow(onClick = onMusic) {
-                    ZRArt(seed = "kosong", size = 40.dp, radius = 12.dp)
-                    Text(
-                        "Pilih soundtrack lari",
-                        style = zStyle(14.sp, FontWeight.SemiBold),
-                        color = ZR.Tx,
-                        modifier = Modifier.weight(1f)
-                    )
-                    Icon(ZRIcons.Music, contentDescription = "Musik", tint = ZR.Mut, modifier = Modifier.size(20.dp))
-                }
-            }
-
-            Row(
+            // Header = area drag + tap (handle + zona 32dp / baris ringkas)
+            Column(
                 Modifier
                     .fillMaxWidth()
-                    .padding(horizontal = 6.dp)
-                    .padding(top = 14.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+                    .draggable(
+                        state = drag,
+                        orientation = Orientation.Vertical,
+                        onDragStopped = { v ->
+                            snapTo(
+                                when {
+                                    v < -500f -> true
+                                    v > 500f -> false
+                                    else -> anim.value > (PEEK_H + maxSheetH) / 2
+                                }
+                            )
+                        }
+                    )
+                    .clickable { snapTo(!expanded) }
             ) {
                 Box(
                     Modifier
-                        .size(52.dp)
-                        .clip(CircleShape)
-                        .background(ZR.S2)
-                        .clickable(onClick = onMusic),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(ZRIcons.Music, contentDescription = "Musik", tint = ZR.Tx, modifier = Modifier.size(20.dp))
-                }
-                val recording = data.isTracking && !data.isPaused
-                Box(
-                    Modifier
-                        .size(76.dp)
-                        .clip(CircleShape)
-                        .background(Color.White)
-                        .clickable(onClick = onMain),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Icon(
-                        if (recording) ZRIcons.Pause else ZRIcons.Play,
-                        contentDescription = if (recording) "Jeda" else "Mulai",
-                        tint = Color(0xFF14161B),
-                        modifier = Modifier.size(30.dp)
+                        .align(Alignment.CenterHorizontally)
+                        .padding(top = 8.dp, bottom = 10.dp)
+                        .size(width = 36.dp, height = 4.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .background(Color(0xFF3A3F4A))
+                )
+                if (!expanded) {
+                    CollapsedRow(
+                        data = data,
+                        paceQ = paceQ,
+                        onMain = onMain,
+                        onStop = onStop
                     )
-                }
-                Box(
-                    Modifier
-                        .size(52.dp)
-                        .clip(CircleShape)
-                        .border(2.dp, ZR.Stop, CircleShape)
-                        .clickable(onClick = onStop),
-                    contentAlignment = Alignment.Center
-                ) {
+                } else {
                     Box(
                         Modifier
-                            .size(16.dp)
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(ZR.Stop)
-                    )
+                            .fillMaxWidth()
+                            .height(32.dp)
+                            .padding(horizontal = 20.dp),
+                        contentAlignment = Alignment.CenterStart
+                    ) {
+                        Text("Jarak", style = zStyle(12.sp, FontWeight.Normal), color = ZR.Mut)
+                    }
                 }
+            }
+            if (expanded) {
+                Column(
+                    Modifier
+                        .verticalScroll(rememberScrollState())
+                        .padding(horizontal = 20.dp)
+                        .padding(bottom = 16.dp)
+                ) {
+                    ZRBigNumber(fmtKm1(data.distanceMeters), "km", size = 66.sp)
+                    if (seeking) {
+                        Text(
+                            "Mencari sinyal GPS. Tunggu sampai status berubah jadi GPS aktif.",
+                            style = zStyle(12.sp, FontWeight.Normal),
+                            color = ZR.Mut,
+                            modifier = Modifier.padding(top = 6.dp)
+                        )
+                    }
+                    Row(
+                        Modifier.fillMaxWidth().padding(vertical = 14.dp),
+                        horizontalArrangement = Arrangement.SpaceEvenly
+                    ) {
+                        RunStat(
+                            LocationUtils.formatDuration(data.elapsedMillis), "Durasi",
+                            Modifier.weight(1f)
+                        )
+                        RunStat(paceQ, "Pace", Modifier.weight(1f))
+                        RunStat(
+                            NumberFormat.getNumberInstance(Locale("id", "ID")).apply {
+                                maximumFractionDigits = 1; minimumFractionDigits = 1
+                            }.format(data.currentSpeedKmh),
+                            "km/jam",
+                            Modifier.weight(1f)
+                        )
+                    }
+                    if (song != null) {
+                        ZRRow {
+                            ZRArt(seed = song.id, thumbnailUrl = song.thumbnailUrl, size = 40.dp, radius = 12.dp)
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    song.title,
+                                    style = zStyle(14.sp, FontWeight.SemiBold),
+                                    color = ZR.Tx, maxLines = 1
+                                )
+                                Text(
+                                    song.artist,
+                                    style = zStyle(12.sp, FontWeight.Normal),
+                                    color = ZR.Mut, maxLines = 1
+                                )
+                            }
+                            if (isPlaying) ZREqBars()
+                        }
+                    } else {
+                        ZRRow(onClick = onMusic) {
+                            ZRArt(seed = "kosong", size = 40.dp, radius = 12.dp)
+                            Text(
+                                "Pilih soundtrack lari",
+                                style = zStyle(14.sp, FontWeight.SemiBold),
+                                color = ZR.Tx,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Icon(ZRIcons.Music, contentDescription = "Musik", tint = ZR.Mut, modifier = Modifier.size(20.dp))
+                        }
+                    }
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .padding(horizontal = 6.dp)
+                            .padding(top = 14.dp),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            Modifier
+                                .size(52.dp)
+                                .clip(CircleShape)
+                                .background(ZR.S2)
+                                .clickable(onClick = onMusic),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(ZRIcons.Music, contentDescription = "Musik", tint = ZR.Tx, modifier = Modifier.size(20.dp))
+                        }
+                        val recording = data.isTracking && !data.isPaused
+                        Box(
+                            Modifier
+                                .size(76.dp)
+                                .clip(CircleShape)
+                                .background(Color.White)
+                                .clickable(onClick = onMain),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Icon(
+                                if (recording) ZRIcons.Pause else ZRIcons.Play,
+                                contentDescription = if (recording) "Jeda" else "Mulai",
+                                tint = Color(0xFF14161B),
+                                modifier = Modifier.size(30.dp)
+                            )
+                        }
+                        Box(
+                            Modifier
+                                .size(52.dp)
+                                .clip(CircleShape)
+                                .border(2.dp, ZR.Stop, CircleShape)
+                                .clickable(onClick = onStop),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Box(
+                                Modifier
+                                    .size(16.dp)
+                                    .clip(RoundedCornerShape(4.dp))
+                                    .background(ZR.Stop)
+                            )
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun CollapsedRow(
+    data: TrackingData,
+    paceQ: String,
+    onMain: () -> Unit,
+    onStop: () -> Unit
+) {
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .padding(start = 20.dp, end = 20.dp, top = 14.dp, bottom = 16.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Column {
+            Row {
+                Text(
+                    fmtKm1(data.distanceMeters),
+                    style = zStyle(28.sp, FontWeight.Bold),
+                    color = ZR.Tx,
+                    modifier = Modifier.alignByBaseline()
+                )
+                Spacer(Modifier.width(4.dp))
+                Text(
+                    "km",
+                    style = zStyle(14.sp, FontWeight.Medium),
+                    color = ZR.Mut,
+                    modifier = Modifier.alignByBaseline()
+                )
+            }
+            Text(
+                "${LocationUtils.formatDuration(data.elapsedMillis)} · $paceQ",
+                style = zStyle(12.sp, FontWeight.Normal),
+                color = ZR.Mut
+            )
+        }
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(12.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            val recording = data.isTracking && !data.isPaused
+            Box(
+                Modifier
+                    .size(48.dp)
+                    .clip(CircleShape)
+                    .background(Color.White)
+                    .clickable(onClick = onMain),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    if (recording) ZRIcons.Pause else ZRIcons.Play,
+                    contentDescription = if (recording) "Jeda" else "Mulai",
+                    tint = Color(0xFF14161B),
+                    modifier = Modifier.size(22.dp)
+                )
+            }
+            Box(
+                Modifier
+                    .size(44.dp)
+                    .clip(CircleShape)
+                    .border(2.dp, ZR.Stop, CircleShape)
+                    .clickable(onClick = onStop),
+                contentAlignment = Alignment.Center
+            ) {
+                Box(
+                    Modifier
+                        .size(14.dp)
+                        .clip(RoundedCornerShape(4.dp))
+                        .background(ZR.Stop)
+                )
             }
         }
     }
