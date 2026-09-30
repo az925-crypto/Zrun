@@ -12,12 +12,13 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -43,7 +44,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import com.zaaam.Zmusic.model.Song
-import com.zaaam.Zmusic.model.entity.PlaylistEntity
 import com.zaaam.Zmusic.ui.home.HomeState
 import com.zaaam.Zmusic.ui.home.HomeViewModel
 import com.zaaam.Zmusic.ui.library.LibraryViewModel
@@ -51,6 +51,7 @@ import com.zaaam.Zmusic.ui.player.PlayerViewModel
 import com.zaaam.Zmusic.ui.zrun.AddToPlaylistDialog
 import com.zaaam.Zmusic.ui.zrun.CreatePlaylistDialog
 import com.zaaam.Zmusic.ui.zrun.SectionHeader
+import com.zaaam.Zmusic.ui.zrun.SongRow
 import com.zaaam.Zmusic.ui.zrun.ZR
 import com.zaaam.Zmusic.ui.zrun.ZRArt
 import com.zaaam.Zmusic.ui.zrun.ZRIcons
@@ -72,6 +73,9 @@ fun MusicHomeScreen(
 ) {
     val state by homeVm.state.collectAsState()
     val playlists by libVm.playlists.collectAsState()
+    val queue by player.queueManager.queue.collectAsState()
+    val idx by player.queueManager.currentIndex.collectAsState()
+    val currentId = queue.getOrNull(idx)?.id
 
     var songToAdd by remember { mutableStateOf<Song?>(null) }
     var showCreate by remember { mutableStateOf(false) }
@@ -93,10 +97,13 @@ fun MusicHomeScreen(
             .padding(horizontal = 16.dp)
             .padding(bottom = 150.dp)
     ) {
+        Text("Musik", style = zStyle(26.sp, FontWeight.Bold, (-0.52).sp), color = ZR.Tx)
+
         // 1. Search pill
         Row(
             Modifier
                 .fillMaxWidth()
+                .padding(top = 12.dp)
                 .height(44.dp)
                 .clip(RoundedCornerShape(22.dp))
                 .background(ZR.S1)
@@ -125,41 +132,61 @@ fun MusicHomeScreen(
 
                 // 2. Hero
                 if (running.isNotEmpty()) {
-                    val heroTitle = c.heroSong?.title ?: running.first().title
+                    val first = running.first()
+                    val heroTitle = c.heroSong?.title ?: first.title
+                    val totalMs = running.sumOf { it.duration }
                     Box(
                         Modifier
                             .fillMaxWidth()
                             .padding(top = 14.dp)
-                            .height(130.dp)
+                            .height(148.dp)
                             .clip(RoundedCornerShape(26.dp))
                             .background(ZR.Violet)
-                            .clickable { play(running.first(), running) }
+                            .clickable { play(first, running) }
                             .padding(16.dp)
                     ) {
-                        Column(Modifier.align(Alignment.BottomStart)) {
-                            Text(
-                                heroTitle,
-                                style = zStyle(22.sp, FontWeight.Bold),
-                                color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis
-                            )
-                            Text(
-                                "${fmtInt(running.size.toLong())} lagu untuk pace santai",
-                                style = zStyle(12.sp, FontWeight.Normal),
-                                color = Color.White.copy(alpha = 0.8f)
-                            )
-                        }
-                        Box(
-                            Modifier
-                                .align(Alignment.TopEnd)
-                                .size(42.dp)
-                                .clip(CircleShape)
-                                .background(Color.White),
-                            contentAlignment = Alignment.Center
+                        Row(
+                            Modifier.fillMaxSize(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Icon(
-                                ZRIcons.Play, contentDescription = "Putar",
-                                tint = Color(0xFF14161B), modifier = Modifier.size(20.dp)
-                            )
+                            Column(Modifier.weight(1f)) {
+                                Text(
+                                    "Dibuat untuk lari",
+                                    style = zStyle(11.sp, FontWeight.Bold, 1.sp),
+                                    color = Color.White.copy(alpha = 0.8f)
+                                )
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    heroTitle,
+                                    style = zStyle(24.sp, FontWeight.Bold),
+                                    color = Color.White, maxLines = 1, overflow = TextOverflow.Ellipsis
+                                )
+                                Spacer(Modifier.height(4.dp))
+                                Text(
+                                    "${fmtInt(running.size.toLong())} lagu · ${fmtTotal(totalMs)}",
+                                    style = zStyle(12.sp, FontWeight.Normal),
+                                    color = Color.White.copy(alpha = 0.8f)
+                                )
+                            }
+                            Spacer(Modifier.width(12.dp))
+                            Box {
+                                ZRArt(seed = first.id, thumbnailUrl = first.thumbnailUrl, size = 96.dp, radius = 18.dp)
+                                Box(
+                                    Modifier
+                                        .align(Alignment.BottomStart)
+                                        .offset(x = (-12).dp, y = 12.dp)
+                                        .size(48.dp)
+                                        .clip(CircleShape)
+                                        .background(Color.White),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Icon(
+                                        ZRIcons.Play, contentDescription = "Putar",
+                                        tint = Color(0xFF14161B), modifier = Modifier.size(24.dp)
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -168,17 +195,34 @@ fun MusicHomeScreen(
                 if (running.isNotEmpty()) {
                     SectionHeader("Trending")
                     LazyRow(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-                        items(running.take(10), key = { it.id }) { song ->
+                        itemsIndexed(running.take(10), key = { _, song -> song.id }) { i, song ->
                             @OptIn(ExperimentalFoundationApi::class)
                             Column(
                                 Modifier
-                                    .width(92.dp)
+                                    .width(100.dp)
                                     .combinedClickable(
                                         onClick = { play(song, running) },
                                         onLongClick = { songToAdd = song }
                                     )
                             ) {
-                                ZRArt(seed = song.id, thumbnailUrl = song.thumbnailUrl, size = 92.dp, radius = 20.dp)
+                                Box {
+                                    ZRArt(seed = song.id, thumbnailUrl = song.thumbnailUrl, size = 100.dp, radius = 20.dp)
+                                    Box(
+                                        Modifier
+                                            .align(Alignment.TopStart)
+                                            .padding(6.dp)
+                                            .size(28.dp)
+                                            .clip(CircleShape)
+                                            .background(ZR.S2),
+                                        contentAlignment = Alignment.Center
+                                    ) {
+                                        Text(
+                                            fmtInt((i + 1).toLong()),
+                                            style = zStyle(13.sp, FontWeight.Bold),
+                                            color = ZR.Tx
+                                        )
+                                    }
+                                }
                                 Spacer(Modifier.height(6.dp))
                                 Text(
                                     song.title,
@@ -195,7 +239,33 @@ fun MusicHomeScreen(
                     }
                 }
 
-                // 4. Playlist kamu
+                // 4. Terakhir diputar
+                if (c.recentSongs.isNotEmpty()) {
+                    SectionHeader("Terakhir diputar")
+                    c.recentSongs.take(4).forEach { song ->
+                        SongRow(
+                            song = song,
+                            isPlaying = song.id == currentId,
+                            onClick = { play(song, c.recentSongs) },
+                            onLongClick = { songToAdd = song }
+                        )
+                    }
+                }
+
+                // 5. Pilihan buatmu
+                if (c.featuredSongs.isNotEmpty()) {
+                    SectionHeader("Pilihan buatmu")
+                    c.featuredSongs.take(5).forEach { song ->
+                        SongRow(
+                            song = song,
+                            isPlaying = song.id == currentId,
+                            onClick = { play(song, c.featuredSongs) },
+                            onLongClick = { songToAdd = song }
+                        )
+                    }
+                }
+
+                // 6. Playlist kamu
                 SectionHeader("Playlist kamu")
                 if (playlists.isEmpty()) {
                     ZRRow(onClick = { showCreate = true }) {
@@ -271,15 +341,23 @@ fun MusicHomeScreen(
     }
 }
 
+private fun fmtTotal(ms: Long): String {
+    val m = (ms / 60_000L).toInt()
+    return if (m >= 60) "${fmtInt((m / 60).toLong())} j ${fmtInt((m % 60).toLong())} mnt"
+    else "${fmtInt(m.toLong())} mnt"
+}
+
 @Preview(showBackground = true, backgroundColor = 0xFF0A0B0E, widthDp = 360, heightDp = 780)
 @Composable
 private fun MusicPreview() {
     Column(
         Modifier.fillMaxSize().background(ZR.Bg).padding(horizontal = 16.dp)
     ) {
+        Text("Musik", style = zStyle(26.sp, FontWeight.Bold, (-0.52).sp), color = ZR.Tx)
         Row(
             Modifier
                 .fillMaxWidth()
+                .padding(top = 12.dp)
                 .height(44.dp)
                 .clip(RoundedCornerShape(22.dp))
                 .background(ZR.S1)
@@ -294,30 +372,61 @@ private fun MusicPreview() {
             Modifier
                 .fillMaxWidth()
                 .padding(top = 14.dp)
-                .height(130.dp)
+                .height(148.dp)
                 .clip(RoundedCornerShape(26.dp))
                 .background(ZR.Violet)
                 .padding(16.dp)
         ) {
-            Column(Modifier.align(Alignment.BottomStart)) {
-                Text("Lari malam", style = zStyle(22.sp, FontWeight.Bold), color = Color.White)
-                Text("30 lagu untuk pace santai", style = zStyle(12.sp, FontWeight.Normal),
-                    color = Color.White.copy(alpha = 0.8f))
-            }
-            Box(
-                Modifier.align(Alignment.TopEnd).size(42.dp)
-                    .clip(CircleShape).background(Color.White),
-                contentAlignment = Alignment.Center
+            Row(
+                Modifier.fillMaxSize(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Icon(ZRIcons.Play, contentDescription = "Putar", tint = Color(0xFF14161B),
-                    modifier = Modifier.size(20.dp))
+                Column(Modifier.weight(1f)) {
+                    Text("Dibuat untuk lari", style = zStyle(11.sp, FontWeight.Bold, 1.sp),
+                        color = Color.White.copy(alpha = 0.8f))
+                    Spacer(Modifier.height(4.dp))
+                    Text("Lari malam", style = zStyle(24.sp, FontWeight.Bold), color = Color.White)
+                    Spacer(Modifier.height(4.dp))
+                    Text("30 lagu · 1 j 42 mnt", style = zStyle(12.sp, FontWeight.Normal),
+                        color = Color.White.copy(alpha = 0.8f))
+                }
+                Spacer(Modifier.width(12.dp))
+                Box {
+                    ZRArt(seed = "Lari malam", size = 96.dp, radius = 18.dp)
+                    Box(
+                        Modifier
+                            .align(Alignment.BottomStart)
+                            .offset(x = (-12).dp, y = 12.dp)
+                            .size(48.dp)
+                            .clip(CircleShape)
+                            .background(Color.White),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(ZRIcons.Play, contentDescription = "Putar", tint = Color(0xFF14161B),
+                            modifier = Modifier.size(24.dp))
+                    }
+                }
             }
         }
         SectionHeader("Trending")
         Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
-            ZRunSamples.songs.forEach { song ->
-                Column(Modifier.width(92.dp)) {
-                    ZRArt(seed = song.id, size = 92.dp, radius = 20.dp)
+            ZRunSamples.songs.forEachIndexed { i, song ->
+                Column(Modifier.width(100.dp)) {
+                    Box {
+                        ZRArt(seed = song.id, size = 100.dp, radius = 20.dp)
+                        Box(
+                            Modifier
+                                .align(Alignment.TopStart)
+                                .padding(6.dp)
+                                .size(28.dp)
+                                .clip(CircleShape)
+                                .background(ZR.S2),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(fmtInt((i + 1).toLong()), style = zStyle(13.sp, FontWeight.Bold), color = ZR.Tx)
+                        }
+                    }
                     Spacer(Modifier.height(6.dp))
                     Text(song.title, style = zStyle(12.5.sp, FontWeight.SemiBold), color = ZR.Tx,
                         maxLines = 1, overflow = TextOverflow.Ellipsis)
