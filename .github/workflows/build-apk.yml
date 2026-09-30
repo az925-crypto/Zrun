@@ -1,8 +1,8 @@
 name: Build APK ZRun
 
 # Semua build jalan di GitHub Actions — JANGAN build rilis di env lokal.
-# - Push ke main (non-docs) → build debug + upload artifact.
-# - Push tag v* (mis. v1.0.0) → build debug + buat GitHub Release + lampirkan APK.
+# - Push ke main (non-docs) → build debug + release + upload artifact.
+# - Push tag v* (mis. v1.0.1) → build + buat GitHub Release + lampirkan APK.
 
 on:
   push:
@@ -40,7 +40,14 @@ jobs:
         run: sed -i '/aapt2FromMavenOverride/d' gradle.properties
 
       - name: Build debug APK
+        env:
+          MAPS_API_KEY: ${{ secrets.MAPS_API_KEY }}
         run: ./gradlew assembleDebug --no-daemon --stacktrace
+
+      - name: Build release APK (R8, signed debug keystore)
+        env:
+          MAPS_API_KEY: ${{ secrets.MAPS_API_KEY }}
+        run: ./gradlew assembleRelease --no-daemon --stacktrace
 
       - name: Upload debug APK
         uses: actions/upload-artifact@v4
@@ -49,9 +56,15 @@ jobs:
           path: app/build/outputs/apk/debug/app-debug.apk
           retention-days: 14
 
-      # Build release sengaja dimatikan di CI (hemat waktu runner; cukup debug).
-      # Infrastruktur signing via Secrets ZMUSIC_* tetap ada di build.gradle.kts —
-      # kalau mau release lagi, kembalikan step assembleRelease dari riwayat git.
+      - name: Upload release APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: zrun-release-apk
+          path: app/build/outputs/apk/release/app-release.apk
+          retention-days: 14
+
+      # Signing release-store (Play) via Secrets ZMUSIC_* tetap didukung di
+      # build.gradle.kts — kalau secret-nya ada, otomatis dipakai.
 
   release:
     # Hanya jalan saat push tag v* — APK diambil dari artifact job build.
@@ -66,7 +79,7 @@ jobs:
       - name: Unduh APK dari artifact
         uses: actions/download-artifact@v4
         with:
-          name: zrun-debug-apk
+          pattern: zrun-*-apk
           path: dist
 
       - name: Buat GitHub Release + lampirkan APK
@@ -74,12 +87,12 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
-          APK="dist/zrun-${TAG}-debug.apk"
-          cp dist/app-debug.apk "$APK"
+          cp dist/zrun-debug-apk/app-debug.apk "dist/zrun-${TAG}-debug.apk"
+          cp dist/zrun-release-apk/app-release.apk "dist/zrun-${TAG}-release.apk"
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" "$APK" --clobber
+            gh release upload "$TAG" "dist/zrun-${TAG}-debug.apk" "dist/zrun-${TAG}-release.apk" --clobber
           else
-            gh release create "$TAG" "$APK" \
+            gh release create "$TAG" "dist/zrun-${TAG}-debug.apk" "dist/zrun-${TAG}-release.apk" \
               --title "ZRun $TAG" \
-              --notes "APK debug ZRun $TAG — langsung bisa di-install di HP."
+              --notes "ZRun $TAG — release (R8, ringan) untuk harian; debug untuk ngoprek. Langsung bisa di-install."
           fi

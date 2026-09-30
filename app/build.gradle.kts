@@ -35,8 +35,8 @@ android {
         // versionCode WAJIB naik tiap rilis — Android menolak update APK dengan
         // versionCode <= yang terpasang (user terpaksa uninstall = data Room hilang).
         // Konvensi: versionName X.Y.Z -> versionCode X*100+Y*10+Z (1.0.0 -> 100)
-        versionCode = 100
-        versionName = "1.0.0"
+        versionCode = 101
+        versionName = "1.0.1"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
@@ -81,7 +81,10 @@ android {
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
             )
-            signingConfig = signingConfigs.findByName("release")
+            // Kalau keystore rilis (ZMUSIC_*) tidak ada, pakai debug keystore yang
+            // di-commit — APK tetap ter-install (R8/minify tetap jalan) dan SHA-1
+            // konsisten dengan restriksi Maps API key.
+            signingConfig = signingConfigs.findByName("release") ?: signingConfigs.getByName("debugFixed")
         }
     }
 
