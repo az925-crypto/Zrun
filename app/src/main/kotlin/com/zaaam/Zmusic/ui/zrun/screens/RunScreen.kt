@@ -194,15 +194,21 @@ private fun RunContent(
     }
     val density = LocalDensity.current
     val polyWidth = remember { with(density) { 5.dp.toPx() } }
-    // Ikon titik posisi: lingkaran putih solid diameter 14dp (ukuran tetap di semua zoom)
+    // Ikon titik posisi: dibuat HANYA setelah peta siap (onMapLoaded),
+    // kalau tidak BitmapDescriptorFactory belum init -> force close
+    var mapReady by remember { mutableStateOf(false) }
     val dotPx = remember(density) { with(density) { 14.dp.roundToPx() } }
-    val dotIcon = remember(dotPx) {
-        val bmp = Bitmap.createBitmap(dotPx, dotPx, Bitmap.Config.ARGB_8888)
-        val canvas = android.graphics.Canvas(bmp)
-        val paint = Paint().apply { isAntiAlias = true; color = android.graphics.Color.WHITE }
-        val r = dotPx / 2f
-        canvas.drawCircle(r, r, r, paint)
-        BitmapDescriptorFactory.fromBitmap(bmp)
+    val dotIcon = remember(dotPx, mapReady) {
+        if (!mapReady) {
+            null
+        } else {
+            val bmp = Bitmap.createBitmap(dotPx, dotPx, Bitmap.Config.ARGB_8888)
+            val canvas = android.graphics.Canvas(bmp)
+            val paint = Paint().apply { isAntiAlias = true; color = android.graphics.Color.WHITE }
+            val r = dotPx / 2f
+            canvas.drawCircle(r, r, r, paint)
+            BitmapDescriptorFactory.fromBitmap(bmp)
+        }
     }
     val markerState = remember { MarkerState(position = LatLng(-6.2088, 106.8456)) }
     val lastPoint = routeLatLng.lastOrNull()
@@ -254,7 +260,8 @@ private fun RunContent(
                 mapToolbarEnabled = false,
                 myLocationButtonEnabled = false
             ),
-            contentPadding = PaddingValues(bottom = sheetH)
+            contentPadding = PaddingValues(bottom = sheetH),
+            onMapLoaded = { mapReady = true }
         ) {
             if (routeLatLng.size >= 2) {
                 Polyline(
@@ -266,14 +273,17 @@ private fun RunContent(
                     endCap = RoundCap()
                 )
             }
-            routeLatLng.lastOrNull()?.let {
-                Marker(
-                    state = markerState,
-                    icon = dotIcon,
-                    anchor = Offset(0.5f, 0.5f),
-                    flat = false,
-                    zIndex = 2f
-                )
+            val icon = dotIcon
+            if (mapReady && icon != null) {
+                routeLatLng.lastOrNull()?.let {
+                    Marker(
+                        state = markerState,
+                        icon = icon,
+                        anchor = Offset(0.5f, 0.5f),
+                        flat = false,
+                        zIndex = 2f
+                    )
+                }
             }
         }
 
